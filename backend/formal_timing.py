@@ -53,21 +53,40 @@ def analyze_csv(path: Path) -> dict:
             orders.append(int(row["order"]))
     if len(valid) < 100:
         raise ValueError("有效配对数据不足100组")
-    mean_difference = statistics.fmean(differences)
-    standard_error = statistics.stdev(differences) / math.sqrt(len(differences))
+    block_size = 200
+    block_estimates = []
+    for start in range(0, len(differences) - block_size + 1, block_size):
+        block = differences[start:start + block_size]
+        block_orders = orders[start:start + block_size]
+        first_valid = [d for d, order in zip(block, block_orders) if order == 0]
+        first_changed = [d for d, order in zip(block, block_orders) if order == 1]
+        if first_valid and first_changed:
+            block_estimates.append(
+                (statistics.fmean(first_valid) + statistics.fmean(first_changed)) / 2
+            )
+    if len(block_estimates) >= 5:
+        mean_difference = statistics.fmean(block_estimates)
+        standard_error = statistics.stdev(block_estimates) / math.sqrt(len(block_estimates))
+        method = "每200组为一个时间块，块内平衡两种执行顺序，再对块均值计算95%正态近似区间"
+    else:
+        mean_difference = statistics.fmean(differences)
+        standard_error = statistics.stdev(differences) / math.sqrt(len(differences))
+        method = "样本量较少，仅使用逐组配对均值的95%正态近似区间"
     half_width = 1.96 * standard_error
     lower, upper = mean_difference - half_width, mean_difference + half_width
     return {
         "valid": summarize(valid),
         "changed": summarize(changed),
         "paired_mean_difference_ns": mean_difference,
+        "unadjusted_paired_mean_difference_ns": statistics.fmean(differences),
         "paired_difference_ci95_ns": [lower, upper],
         "paired_t_statistic": mean_difference / standard_error if standard_error else None,
         "statistically_distinguishable": lower > 0 or upper < 0,
         "relative_mean_difference_percent": 100 * mean_difference / statistics.fmean(valid),
         "first_valid_count": orders.count(0),
         "first_changed_count": orders.count(1),
-        "method": "配对均值差及其95%正态近似置信区间；不删除异常值；结果仅描述本次环境和这两类样本",
+        "block_count": len(block_estimates),
+        "method": method + "；不删除异常值；单轮结果仅具探索性，应检查重复实验的一致性",
     }
 
 
