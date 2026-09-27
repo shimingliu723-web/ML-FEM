@@ -139,9 +139,28 @@ $("timingButton").addEventListener("click", event => busy(event.currentTarget, a
   $("timingAccuracy").textContent = `${result.accuracy.toFixed(1)}%`;
   $("timingElapsed").textContent = secondsFromNs(result.elapsed_ns);
   $("timingGap").textContent = result.reference_gap ? result.reference_gap.toFixed(2) : "-";
-  $("timingDetail").innerHTML = `<b>${result.distinguishable ? "观察到明显时间差异" : "差异不明显"}</b><br>固定 CPU：${result.cpu}，退出码：${result.exit_status}<br>完成：${result.correct}/${result.coefficients_done}，准确率：${result.accuracy.toFixed(1)}%，平均迭代：${Math.round(result.iteration_summary.mean).toLocaleString()}<br>${result.detection_note}<br>日志：${result.log_file}`;
+  $("timingDetail").innerHTML = `<b>${result.distinguishable ? "参考类别出现时间差距" : "参考类别差距不明显"}</b><br>固定 CPU：${result.cpu}，退出码：${result.exit_status}<br>完成：${result.correct}/${result.coefficients_done}，短实验内部命中率：${result.accuracy.toFixed(1)}%，平均迭代：${Math.round(result.iteration_summary.mean).toLocaleString()}<br>${result.detection_note}<br>日志：${result.log_file}`;
   renderMeansChart(result.last_means);
-  log("高精度计时检测", `${result.correct}/${result.coefficients_done} · ${result.accuracy.toFixed(1)}%`);
+  log("参考短实验", `${result.correct}/${result.coefficients_done} · 内部命中率 ${result.accuracy.toFixed(1)}%`);
+}));
+
+$("formalButton").addEventListener("click", event => busy(event.currentTarget, async () => {
+  const result = await api("/api/formal-timing", {
+    cpu: Number($("formalCpu").value),
+    pairs: Number($("formalPairs").value)
+  });
+  const data = result.analysis;
+  $("formalValid").textContent = ns(data.valid.mean_ns);
+  $("formalChanged").textContent = ns(data.changed.mean_ns);
+  $("formalDifference").textContent = ns(data.paired_mean_difference_ns);
+  $("formalInterval").textContent = data.paired_difference_ci95_ns.map(v => v.toFixed(1)).join(" ~ ") + " ns";
+  $("formalDetail").textContent =
+    `${data.statistically_distinguishable ? "本次配对均值差的区间未跨越零" : "本次配对均值差的区间跨越零"}。
+    每类 ${data.valid.count} 次；正常输入中位数 ${data.valid.p50_ns.toFixed(1)} ns、P95 ${data.valid.p95_ns.toFixed(1)} ns；
+    单比特变化中位数 ${data.changed.p50_ns.toFixed(1)} ns、P95 ${data.changed.p95_ns.toFixed(1)} ns。
+    原始数据：${result.raw_csv}；分析报告：${result.report_json}。结论限于本次环境和输入类别。`;
+  log("正式计时实验", `${result.level} · ${result.pairs} 组`);
 }));
 
 $("clearLog").addEventListener("click", () => { $("activityLog").innerHTML = '<div class="empty">等待执行操作</div>'; });
+

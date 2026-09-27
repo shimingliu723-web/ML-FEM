@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from mlkem_service import PARAMETERS, get_mlkem, run_known_answer_test, run_timing_detection
+from formal_timing import run_formal_timing
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,6 +91,8 @@ class Handler(SimpleHTTPRequestHandler):
                 result = run_known_answer_test()
             elif path == "/api/timing-detect":
                 result = run_timing_detection(int(body.get("cpu", 0)), int(body.get("timeout_seconds", 600)))
+            elif path == "/api/formal-timing":
+                result = run_formal_timing(level, int(body.get("pairs", 10000)), int(body.get("cpu", 0)))
             else:
                 self._json(404, {"ok": False, "error": "接口不存在"})
                 return
@@ -121,3 +124,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -91,9 +91,9 @@
     <section class="timing-panel">
       <div class="section-title">
         <div>
-          <div class="eyebrow">高精度计时检测</div>
-          <h2>固定 CPU 核时间差异检测</h2>
-          <p>调用已调通的短实验版本，固定 CPU 核采集多轮时间数据，并自动解析日志。</p>
+          <div class="eyebrow">参考短实验</div>
+          <h2>固定 CPU 核参考计时</h2>
+          <p>运行独立的 Kyber-512 短实验并解析日志。正式 ML-KEM 解封装检测请使用下方模块。</p>
         </div>
         <div class="test-controls compact">
           <label>CPU核<input id="timingCpu" type="number" value="0" min="0" max="31"></label>
@@ -103,12 +103,34 @@
       </div>
       <div class="metric-grid">
         <article><span>完成位置</span><strong id="timingDone">-</strong></article>
-        <article><span>正确率</span><strong id="timingAccuracy">-</strong></article>
+        <article><span>内部命中率</span><strong id="timingAccuracy">-</strong></article>
         <article><span>运行时间</span><strong id="timingElapsed">-</strong></article>
         <article><span>参考差距</span><strong id="timingGap">-</strong></article>
       </div>
       <div class="timing-detail" id="timingDetail">尚未执行</div>
       <div class="chart" id="meansChart"></div>
+    </section>
+
+    <section class="timing-panel">
+      <div class="section-title">
+        <div>
+          <div class="eyebrow">正式计时实验</div>
+          <h2>ML-KEM 解封装时间对比</h2>
+          <p>对平台同一实现的两类等长输入进行配对测量，保存每次耗时并计算统计结果。</p>
+        </div>
+        <div class="test-controls compact">
+          <label>CPU核<input id="formalCpu" type="number" value="0" min="0"></label>
+          <label>配对次数<input id="formalPairs" type="number" value="10000" min="100" max="100000"></label>
+          <button id="formalButton" class="primary">运行正式检测</button>
+        </div>
+      </div>
+      <div class="metric-grid">
+        <article><span>正常输入均值</span><strong id="formalValid">-</strong></article>
+        <article><span>单比特变化均值</span><strong id="formalChanged">-</strong></article>
+        <article><span>配对均值差</span><strong id="formalDifference">-</strong></article>
+        <article><span>95%区间</span><strong id="formalInterval">-</strong></article>
+      </div>
+      <div class="timing-detail" id="formalDetail">尚未执行。这里的统计结果只对应本次运行条件。</div>
     </section>
 
     <section class="activity-panel">
@@ -121,3 +143,4 @@
   <script src="/app.js"></script>
 </body>
 </html>
+
