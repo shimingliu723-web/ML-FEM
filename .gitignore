@@ -31,3 +31,5 @@ experiments/clangover-poc/.ref_built
 experiments/clangover-poc/.liboqs_built
 experiments/clangover-poc/kyber/ref/lib/
 experiments/clangover-poc/liboqs/build/
+experiments/formal_timing
+

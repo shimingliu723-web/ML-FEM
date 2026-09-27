@@ -1,0 +1,30 @@
+name: Formal timing smoke test
+on:
+  push:
+    branches: [formal-timing]
+  pull_request:
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native libraries and timing collector
+        run: make all formal-timing
+      - name: Check Python and frontend syntax
+        run: |
+          python3 -m py_compile backend/formal_timing.py backend/server.py
+          node --check frontend/app.js
+      - name: Check paired analysis
+        run: python3 -m unittest discover -s tests -p test_formal_timing.py -v
+      - name: Run small native timing smoke test
+        run: |
+          python3 - <<'PY'
+          import os
+          import sys
+          sys.path.insert(0, "backend")
+          from formal_timing import run_formal_timing
+          result = run_formal_timing("512", 500, min(os.sched_getaffinity(0)))
+          assert result["analysis"]["valid"]["count"] == 500
+          print(result["analysis"]["paired_mean_difference_ns"])
+          PY
+

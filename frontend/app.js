@@ -144,4 +144,23 @@ $("timingButton").addEventListener("click", event => busy(event.currentTarget, a
   log("高精度计时检测", `${result.correct}/${result.coefficients_done} · ${result.accuracy.toFixed(1)}%`);
 }));
 
+$("formalButton").addEventListener("click", event => busy(event.currentTarget, async () => {
+  const result = await api("/api/formal-timing", {
+    cpu: Number($("formalCpu").value),
+    pairs: Number($("formalPairs").value)
+  });
+  const data = result.analysis;
+  $("formalValid").textContent = ns(data.valid.mean_ns);
+  $("formalChanged").textContent = ns(data.changed.mean_ns);
+  $("formalDifference").textContent = ns(data.paired_mean_difference_ns);
+  $("formalInterval").textContent = data.paired_difference_ci95_ns.map(v => v.toFixed(1)).join(" ~ ") + " ns";
+  $("formalDetail").textContent =
+    `${data.statistically_distinguishable ? "本次配对均值差的区间未跨越零" : "本次配对均值差的区间跨越零"}。
+    每类 ${data.valid.count} 次；正常输入中位数 ${data.valid.p50_ns.toFixed(1)} ns、P95 ${data.valid.p95_ns.toFixed(1)} ns；
+    单比特变化中位数 ${data.changed.p50_ns.toFixed(1)} ns、P95 ${data.changed.p95_ns.toFixed(1)} ns。
+    原始数据：${result.raw_csv}；分析报告：${result.report_json}。结论限于本次环境和输入类别。`;
+  log("正式计时实验", `${result.level} · ${result.pairs} 组`);
+}));
+
 $("clearLog").addEventListener("click", () => { $("activityLog").innerHTML = '<div class="empty">等待执行操作</div>'; });
+
