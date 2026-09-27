@@ -139,9 +139,9 @@ $("timingButton").addEventListener("click", event => busy(event.currentTarget, a
   $("timingAccuracy").textContent = `${result.accuracy.toFixed(1)}%`;
   $("timingElapsed").textContent = secondsFromNs(result.elapsed_ns);
   $("timingGap").textContent = result.reference_gap ? result.reference_gap.toFixed(2) : "-";
-  $("timingDetail").innerHTML = `<b>${result.distinguishable ? "观察到明显时间差异" : "差异不明显"}</b><br>固定 CPU：${result.cpu}，退出码：${result.exit_status}<br>完成：${result.correct}/${result.coefficients_done}，准确率：${result.accuracy.toFixed(1)}%，平均迭代：${Math.round(result.iteration_summary.mean).toLocaleString()}<br>${result.detection_note}<br>日志：${result.log_file}`;
+  $("timingDetail").innerHTML = `<b>${result.distinguishable ? "参考类别出现时间差距" : "参考类别差距不明显"}</b><br>固定 CPU：${result.cpu}，退出码：${result.exit_status}<br>完成：${result.correct}/${result.coefficients_done}，短实验内部命中率：${result.accuracy.toFixed(1)}%，平均迭代：${Math.round(result.iteration_summary.mean).toLocaleString()}<br>${result.detection_note}<br>日志：${result.log_file}`;
   renderMeansChart(result.last_means);
-  log("高精度计时检测", `${result.correct}/${result.coefficients_done} · ${result.accuracy.toFixed(1)}%`);
+  log("参考短实验", `${result.correct}/${result.coefficients_done} · 内部命中率 ${result.accuracy.toFixed(1)}%`);
 }));
 
 $("formalButton").addEventListener("click", event => busy(event.currentTarget, async () => {

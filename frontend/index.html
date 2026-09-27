@@ -91,9 +91,9 @@
     <section class="timing-panel">
       <div class="section-title">
         <div>
-          <div class="eyebrow">高精度计时检测</div>
-          <h2>固定 CPU 核时间差异检测</h2>
-          <p>调用已调通的短实验版本，固定 CPU 核采集多轮时间数据，并自动解析日志。</p>
+          <div class="eyebrow">参考短实验</div>
+          <h2>固定 CPU 核参考计时</h2>
+          <p>运行独立的 Kyber-512 短实验并解析日志。正式 ML-KEM 解封装检测请使用下方模块。</p>
         </div>
         <div class="test-controls compact">
           <label>CPU核<input id="timingCpu" type="number" value="0" min="0" max="31"></label>
@@ -103,7 +103,7 @@
       </div>
       <div class="metric-grid">
         <article><span>完成位置</span><strong id="timingDone">-</strong></article>
-        <article><span>正确率</span><strong id="timingAccuracy">-</strong></article>
+        <article><span>内部命中率</span><strong id="timingAccuracy">-</strong></article>
         <article><span>运行时间</span><strong id="timingElapsed">-</strong></article>
         <article><span>参考差距</span><strong id="timingGap">-</strong></article>
       </div>
