@@ -8,8 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build native libraries and timing collector
-        run: make all formal-timing
+      - name: Build and run basic checks
+        run: ./scripts/build.sh
       - name: Check Python and frontend syntax
         run: |
           python3 -m py_compile backend/formal_timing.py backend/server.py
