@@ -1,0 +1,6 @@
+# 仅开发与 CI 使用。
+#
+# backend/stats.py 本身只依赖 Python 标准库，服务器上不需要安装任何包即可运行。
+# 安装本文件后，tests/test_stats.py 会额外启用与 scipy 的交叉校验
+# （t 分布、Welch t 检验、Mann-Whitney U、Wilcoxon 符号秩）。
+scipy>=1.11
