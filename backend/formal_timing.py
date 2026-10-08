@@ -18,6 +18,7 @@ BINARY = ROOT / "experiments" / "formal_timing"
 RESULTS = ROOT / "results" / "formal_timing"
 
 from target_manager import get_target
+from stats import analyze_file as analyze_statistical_file
 
 
 def percentile(values: list[int], fraction: float) -> float:
@@ -116,6 +117,9 @@ def run_formal_timing(level: str, pairs: int = 10000, cpu: int = 0, target_id: s
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or "计时程序执行失败")
     analysis = analyze_csv(csv_path)
+    statistical_analysis = analyze_statistical_file(csv_path)
+    if statistical_analysis.get("verdict"):
+        analysis["formal_test_verdict"] = statistical_analysis["verdict"]
     metadata = {
         "target_id": target_id,
         "target_name": target.name,
@@ -136,6 +140,7 @@ def run_formal_timing(level: str, pairs: int = 10000, cpu: int = 0, target_id: s
         "library": str(library),
         "raw_csv": str(csv_path),
         "analysis": analysis,
+        "statistical_analysis": statistical_analysis,
     }
     report_path = csv_path.with_suffix(".json")
     report_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
