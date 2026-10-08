@@ -131,9 +131,10 @@
       <section class="page" id="page-locate">
         <div class="page-head"><div><div class="eyebrow">Requirement 5</div><h2>代码定位</h2></div></div>
         <div class="requirement-card"><b>题目要求</b><p>对检测到的明显时间差异，应进一步定位可能来源，包括敏感条件分支、提前返回、可变时间比较函数、数据相关循环、数据相关内存访问、失败路径及异常处理，并说明其与 ML-KEM 解封装流程的对应关系。</p></div>
-        <div class="control-row"><button id="locateButton" class="primary">定位当前目标</button><button id="diffButton">查看对照/改进源码差异</button></div>
+        <div class="control-row"><button id="locateButton" class="primary">定位当前目标源码</button><button id="binaryLocateButton">二进制定位当前目标</button><button id="diffButton">查看对照/改进源码差异</button></div>
         <div id="locateSummary" class="evidence-box">尚未执行定位</div>
         <div id="locateFindings" class="finding-list"></div>
+        <div id="binaryLocateResult" class="evidence-box command-result">尚未执行二进制定位</div>
         <div id="diffResult" class="evidence-box command-result">尚未查看源码差异</div>
       </section>
 

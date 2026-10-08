@@ -91,6 +91,14 @@ $("locateButton").addEventListener("click", event => busy(event.currentTarget, a
   log("代码定位", result.target_id);
 }));
 
+
+$("binaryLocateButton").addEventListener("click", event => busy(event.currentTarget, async () => {
+  const result = await api("/api/binary-locate", { function: "mlkem_dec" });
+  const rows = (result.findings || []).slice(0, 20).map((item, index) => `<article class="finding"><h3>#${index + 1} ${item.kind}: ${item.mnemonic}</h3><p>${item.note}</p><b>${item.line}</b>${renderSnippet((item.context || []).join("\n"))}</article>`).join("");
+  $("binaryLocateResult").innerHTML = `<b>二进制定位完成</b><br>目标：${result.target_name}<br>参数：${result.level}<br>库文件：${result.library}<br>函数：${result.function}<br>${result.summary}<br>日志策略：${result.logging_policy}<br><br>${rows || "未发现条件控制流候选"}`;
+  log("二进制定位", `${result.target_id} · ${result.function} · 条件跳转 ${result.conditional_jump_count}`);
+}));
+
 $("diffButton").addEventListener("click", event => busy(event.currentTarget, async () => {
   const result = await api("/api/fix-diff", { before_id: "variant_early_return", after_id: "variant_fixed" });
   $("diffResult").innerHTML = `<b>对照/改进源码差异</b><br>${result.explanation}<br>对照文件：${result.before_file}<br>改进文件：${result.after_file}${renderSnippet((result.diff_lines || []).join("\n"))}`;

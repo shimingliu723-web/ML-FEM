@@ -18,6 +18,7 @@ from code_audit import compare_fix, diff_targets, locate_code, performance_compa
 from reporting import generate_markdown_report, report_payload
 from vector_validation import validate_vectors
 from repair_manager import generate_repair, repair_and_compare
+from binary_audit import binary_locate
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,6 +137,12 @@ class Handler(SimpleHTTPRequestHandler):
                 )
             elif path == "/api/code-locate":
                 result = locate_code(str(body.get("target_id", "mlkem_native_baseline")))
+            elif path == "/api/binary-locate":
+                result = binary_locate(
+                    str(body.get("target_id", "mlkem_native_baseline")),
+                    level,
+                    str(body.get("function", "mlkem_dec")),
+                )
             elif path == "/api/fix-diff":
                 result = diff_targets(
                     str(body.get("before_id", "variant_early_return")),
