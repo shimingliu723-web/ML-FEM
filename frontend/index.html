@@ -3,117 +3,181 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ML-KEM实验平台</title>
+  <title>ML-KEM 工程测评平台</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <header class="topbar">
     <div>
-      <div class="eyebrow">A1-13 · FIPS 203</div>
+      <div class="eyebrow">A1-13 · ML-KEM Engineering Evaluation</div>
       <h1>ML-KEM 时间特性检测与防护平台</h1>
-      <p>第一阶段：密钥生成、封装、解封装与正确性验证</p>
+      <p>按题目要求组织：基本密码功能、测试向量验证、样本生成、精确计时、统计检测与证据导出。</p>
     </div>
-    <div class="status"><span></span> mlkem-native 已连接</div>
+    <div class="status"><span></span> 多版本检测已启用</div>
   </header>
 
-  <main>
-    <section class="hero-panel">
-      <div>
-        <h2>算法参数</h2>
-        <p>选择标准参数集后，可以执行完整流程或逐步操作。</p>
+  <main class="shell">
+    <aside class="sidebar">
+      <button class="nav active" data-page="overview">总览</button>
+      <button class="nav" data-page="targets">目标实现</button>
+      <button class="nav" data-page="crypto">基本密码功能</button>
+      <button class="nav" data-page="samples">样本生成</button>
+      <button class="nav" data-page="timing">精确时间检测</button>
+      <button class="nav" data-page="locate">代码定位</button>
+      <button class="nav" data-page="fix">修复对比</button>
+      <button class="nav" data-page="performance">性能评估</button>
+      <button class="nav" data-page="report">报告复现</button>
+      <button class="nav" data-page="evidence">证据与要求</button>
+      <div class="side-card">
+        <span>当前参数</span>
+        <strong id="sideLevel">ML-KEM-768</strong>
+        <span>当前目标</span>
+        <strong id="sideTarget">加载中</strong>
       </div>
-      <div class="level-switch" id="levelSwitch">
-        <button data-level="512">ML-KEM-512<small>Level 1</small></button>
-        <button class="active" data-level="768">ML-KEM-768<small>Level 3</small></button>
-        <button data-level="1024">ML-KEM-1024<small>Level 5</small></button>
-      </div>
-      <button class="primary" id="demoButton">运行完整流程</button>
-    </section>
+    </aside>
 
-    <section class="summary-grid">
-      <article><span>公钥长度</span><strong id="pkSize">1184 B</strong></article>
-      <article><span>私钥长度</span><strong id="skSize">2400 B</strong></article>
-      <article><span>密文长度</span><strong id="ctSize">1088 B</strong></article>
-      <article><span>共享密钥</span><strong>32 B</strong></article>
-    </section>
-
-    <section class="workflow">
-      <article class="step">
-        <div class="step-head"><b>01</b><div><h3>生成密钥对</h3><p>创建封装密钥和解封装密钥</p></div></div>
-        <button id="keygenButton">生成密钥</button>
-        <label>公钥（Base64）<textarea id="publicKey" spellcheck="false"></textarea></label>
-        <label>私钥（Base64）<textarea id="secretKey" spellcheck="false"></textarea></label>
-        <div class="timing" id="keygenTime">尚未运行</div>
-      </article>
-
-      <article class="step">
-        <div class="step-head"><b>02</b><div><h3>密钥封装</h3><p>使用公钥产生密文和共享密钥</p></div></div>
-        <button id="encapsButton">执行封装</button>
-        <label>密文（Base64）<textarea id="ciphertext" spellcheck="false"></textarea></label>
-        <label>封装端共享密钥<textarea id="encapsSecret" spellcheck="false" readonly></textarea></label>
-        <div class="timing" id="encapsTime">尚未运行</div>
-      </article>
-
-      <article class="step">
-        <div class="step-head"><b>03</b><div><h3>密钥解封装</h3><p>使用私钥和密文恢复共享密钥</p></div></div>
-        <button id="decapsButton">执行解封装</button>
-        <label>解封装端共享密钥<textarea id="decapsSecret" spellcheck="false" readonly></textarea></label>
-        <div id="matchResult" class="result neutral">等待结果</div>
-        <div class="timing" id="decapsTime">尚未运行</div>
-      </article>
-    </section>
-
-    <section class="test-panel">
-      <div>
-        <div class="eyebrow">自动验证</div>
-        <h2>连续正确性测试</h2>
-        <p>重复执行完整流程，检查封装端与解封装端共享密钥是否一致。</p>
-      </div>
-      <div class="test-controls">
-        <label>测试次数<input id="iterations" type="number" value="20" min="1" max="1000"></label>
-        <button id="selftestButton">开始测试</button>
-      </div>
-      <div id="selftestResult" class="test-result">尚未执行</div>
-    </section>
-
-    <section class="test-panel vector-panel">
-      <div>
-        <div class="eyebrow">公开向量验证</div>
-        <h2>标准流程字节级测试</h2>
-        <p>调用 mlkem-native 自带 expected_test_vectors，验证 keygen、encaps、decaps 的确定性结果。</p>
-      </div>
-      <div class="test-controls">
-        <button id="vectorButton">运行向量测试</button>
-      </div>
-      <div id="vectorResult" class="test-result">尚未执行</div>
-    </section>
-
-    <section class="timing-panel">
-      <div class="section-title">
-        <div>
-          <div class="eyebrow">高精度计时检测</div>
-          <h2>固定 CPU 核时间差异检测</h2>
-          <p>调用已调通的短实验版本，固定 CPU 核采集多轮时间数据，并自动解析日志。</p>
+    <section class="workspace">
+      <section class="page active" id="page-overview">
+        <div class="page-head">
+          <div><div class="eyebrow">Platform Map</div><h2>平台总览</h2></div>
+          <button class="primary" id="openCryptoFlow">运行一次完整功能流程</button>
         </div>
-        <div class="test-controls compact">
-          <label>CPU核<input id="timingCpu" type="number" value="0" min="0" max="31"></label>
-          <label>上限秒<input id="timingTimeout" type="number" value="600" min="30" max="1800"></label>
-          <button id="timingButton" class="primary">开始检测</button>
+        <div class="requirement-card">
+          <b>作品逻辑</b>
+          <p>平台不是只展示一个实验脚本，而是接入多个 ML-KEM 实现，对每个实现完成正确性验证、等长样本生成、固定 CPU 精确计时和统计分析。规范实现应作为基线，对照实现用于验证检测能力，改进实现用于前后对比。</p>
         </div>
-      </div>
-      <div class="metric-grid">
-        <article><span>完成位置</span><strong id="timingDone">-</strong></article>
-        <article><span>正确率</span><strong id="timingAccuracy">-</strong></article>
-        <article><span>运行时间</span><strong id="timingElapsed">-</strong></article>
-        <article><span>参考差距</span><strong id="timingGap">-</strong></article>
-      </div>
-      <div class="timing-detail" id="timingDetail">尚未执行</div>
-      <div class="chart" id="meansChart"></div>
-    </section>
+        <div class="entry-grid">
+          <button class="entry-card" data-jump="crypto"><b>一、基础 ML-KEM 功能实现</b><span>完整展示 KeyGen / Encaps / Decaps、公开测试向量、自定义单条/批量向量验证，让评委能看到为什么正确。</span></button>
+          <button class="entry-card" data-jump="targets"><b>二、ML-KEM 时间行为检测</b><span>接入预置或本地 ML-KEM 实现，展示运行环境、精确计时、统计判断、代码定位、修复建议与前后复测。</span></button>
+          <button class="entry-card" data-jump="samples"><b>三、异常样本生成与重复实验</b><span>自动生成多类等长输入，用对照实现多次重复实验，记录解封装时间并输出 CSV/JSON 证据。</span></button>
+        </div>
+        <div class="overview-grid">
+          <article><b>覆盖范围</b><span>平台按 12 条题目要求组织功能，而不是只给一次内部测试结果。</span></article>
+          <article><b>工程接入</b><span>支持预置版本，也支持注册服务器本地已有实现库进行检测。</span></article>
+          <article><b>证据导出</b><span>所有关键模块输出路径、统计量、环境说明和报告文件。</span></article>
+        </div>
+        <div class="activity-panel compact-log"><div class="section-title"><h2>本次操作记录</h2><button class="ghost" id="clearLog">清空</button></div><div id="activityLog" class="activity-log"><div class="empty">等待执行操作</div></div></div>
+      </section>
 
-    <section class="activity-panel">
-      <div class="section-title"><h2>本次操作记录</h2><button class="ghost" id="clearLog">清空</button></div>
-      <div id="activityLog" class="activity-log"><div class="empty">等待执行操作</div></div>
+      <section class="page" id="page-targets">
+        <div class="page-head"><div><div class="eyebrow">Requirement: implementation input</div><h2>目标实现接入</h2></div></div>
+        <div class="requirement-card"><b>平台要展示什么</b><p>说明平台输入的是不同 ML-KEM 实现，而不是只检测自己的一份代码。每个目标实现通过 target.json 接入，具备独立库文件、角色说明和可测试状态。</p></div>
+        <div class="control-row">
+          <label>目标实现<select id="targetSelect"></select></label>
+          <button id="targetBuildButton">构建目标</button>
+          <button id="targetSelftestButton">运行自测</button>
+        </div>
+        <div class="module-card">
+          <h3>接入服务器本地 ML-KEM 实现</h3>
+          <p>填写本地库文件模板后，平台会把它加入目标列表。模板中使用 <code>{level}</code> 表示 512/768/1024，例如 <code>/disk4/xxx/libmlkem{level}.so</code>。</p>
+          <div class="form-grid">
+            <label>目标ID<input id="customTargetId" value="custom_mlkem"></label>
+            <label>名称<input id="customTargetName" value="本地自定义实现"></label>
+            <label>库文件模板<input id="customLibTemplate" value="/disk4/lsm/A1-13-MLKEM-Platform/backend/lib/libmlkem{level}.so"></label>
+            <label>构建命令<input id="customBuildCommand" placeholder="可选，例如 bash build.sh"></label>
+            <label>自测命令<input id="customSelftestCommand" placeholder="可选，例如 python3 tests/test_basic.py"></label>
+          </div>
+          <button id="registerTargetButton">注册本地实现</button>
+          <div id="registerTargetResult" class="evidence-box">尚未注册</div>
+        </div>
+        <div class="split">
+          <div><div id="targetReady" class="result neutral">等待加载</div><div id="targetDetail" class="evidence-box">尚未加载目标</div></div>
+          <div><h3>目标清单</h3><div id="targetList" class="target-list">加载中</div></div>
+        </div>
+        <div id="targetCommandResult" class="evidence-box command-result">尚未执行构建或自测</div>
+      </section>
+
+      <section class="page" id="page-crypto">
+        <div class="page-head"><div><div class="eyebrow">Requirement 1</div><h2>基本密码功能与正确性验证</h2></div></div>
+        <div class="requirement-card"><b>题目要求</b><p>实现或接入符合规范的 ML-KEM 密钥生成、封装和解封装功能，并利用公开或主办方提供的测试向量验证算法正确性。</p></div>
+        <div class="level-switch" id="levelSwitch"><button data-level="512">ML-KEM-512<small>Level 1</small></button><button class="active" data-level="768">ML-KEM-768<small>Level 3</small></button><button data-level="1024">ML-KEM-1024<small>Level 5</small></button></div>
+        <section class="summary-grid"><article><span>公钥长度</span><strong id="pkSize">1184 B</strong></article><article><span>私钥长度</span><strong id="skSize">2400 B</strong></article><article><span>密文长度</span><strong id="ctSize">1088 B</strong></article><article><span>共享结果</span><strong>32 B</strong></article></section>
+        <div class="workflow">
+          <article class="step"><div class="step-head"><b>01</b><div><h3>生成密钥对</h3><p>输出公钥和私钥长度证据</p></div></div><button id="keygenButton">生成密钥</button><label>公钥 Base64<textarea id="publicKey" spellcheck="false"></textarea></label><label>私钥 Base64<textarea id="secretKey" spellcheck="false"></textarea></label><div class="timing" id="keygenTime">尚未运行</div></article>
+          <article class="step"><div class="step-head"><b>02</b><div><h3>封装</h3><p>输出封装结果和共享结果</p></div></div><button id="encapsButton">执行封装</button><label>封装输出 Base64<textarea id="ciphertext" spellcheck="false"></textarea></label><label>封装端共享结果<textarea id="encapsSecret" spellcheck="false" readonly></textarea></label><div class="timing" id="encapsTime">尚未运行</div></article>
+          <article class="step"><div class="step-head"><b>03</b><div><h3>解封装</h3><p>比对两端共享结果是否一致</p></div></div><button id="decapsButton">执行解封装</button><label>解封装端共享结果<textarea id="decapsSecret" spellcheck="false" readonly></textarea></label><div id="matchResult" class="result neutral">等待结果</div><div class="timing" id="decapsTime">尚未运行</div></article>
+        </div>
+        <div class="panel-row">
+          <div class="module-card"><h3>连续正确性测试</h3><p>重复执行完整流程，证明不是单次偶然通过。</p><div class="control-row"><label>次数<input id="iterations" type="number" value="20" min="1" max="1000"></label><button id="selftestButton">开始测试</button></div><div id="selftestResult" class="evidence-box">尚未执行</div></div>
+          <div class="module-card"><h3>公开测试向量验证</h3><p>展示公开向量来源、检查项数量、输出尾部和通过结论。</p><button id="vectorButton">运行向量测试</button><div id="vectorResult" class="evidence-box">尚未执行</div></div>
+        </div>
+        <div class="module-card">
+          <h3>自定义 / 批量测试向量验证</h3>
+          <p>支持输入单个 JSON、JSON 数组或 JSON Lines。字段支持 <code>level</code>、<code>ciphertext/ct</code>、<code>secret_key/sk</code>、<code>shared_secret/ss</code>。平台会检查长度、执行解封装并比较期望共享结果。</p>
+          <textarea id="customVectorInput" class="large-input" spellcheck="false" placeholder='[{"level":"768","ct":"...","sk":"...","ss":"..."}]'></textarea>
+          <div class="control-row"><button id="validateVectorButton" class="primary">验证输入向量</button><button id="fillVectorExample">填入当前页面样例</button></div>
+          <div id="customVectorResult" class="evidence-box">尚未验证</div>
+        </div>
+      </section>
+
+      <section class="page" id="page-samples">
+        <div class="page-head"><div><div class="eyebrow">High-level: sample generation</div><h2>自动生成测试样本</h2></div></div>
+        <div class="requirement-card"><b>题目要求对应</b><p>设计至少两类具有明确区别的解封装输入，并进行足够次数重复实验。平台自动生成等长样本，避免只比较长度不同或路径完全无关的数据。</p></div>
+        <div class="control-row"><label>样本组数<input id="sampleCount" type="number" value="32" min="1" max="512"></label><button id="sampleButton" class="primary">生成样本</button></div>
+        <div id="sampleResult" class="evidence-box">尚未生成</div>
+        <div class="sample-grid"><article><b>normal</b><span>由当前目标正常流程生成。</span></article><article><b>changed_mid</b><span>中间位置翻转 1 位，长度不变。</span></article><article><b>changed_first</b><span>首字节翻转 1 位，长度不变。</span></article><article><b>changed_last</b><span>末字节翻转 1 位，长度不变。</span></article></div>
+      </section>
+
+      <section class="page" id="page-timing">
+        <div class="page-head"><div><div class="eyebrow">Requirement 2 & 4</div><h2>精确时间检测与统计分析</h2></div></div>
+        <div class="requirement-card"><b>题目要求</b><p>建立可重复的高精度时间测量框架，说明处理器、系统、编译器、优化级别、CPU 绑定、测试次数和异常样本处理；采用均值、方差、分位数、置信区间等统计方法判断不同输入类别是否显著可区分。</p></div>
+        <div class="control-row"><label>CPU 核<input id="formalCpu" type="number" value="0" min="0" max="31"></label><label>配对次数<input id="formalPairs" type="number" value="10000" min="100" max="100000"></label><button id="formalTimingButton" class="primary">开始正式检测</button></div>
+        <div id="formalStatus" class="result neutral">尚未执行</div>
+        <div class="metric-grid"><article><span>正常均值(ns)</span><strong id="formalValidMean">-</strong></article><article><span>改动均值(ns)</span><strong id="formalChangedMean">-</strong></article><article><span>配对差(ns)</span><strong id="formalDiff">-</strong></article><article><span>运行时间</span><strong id="formalElapsed">-</strong></article></div>
+        <div class="timing-detail" id="formalDetail">尚未执行</div>
+      </section>
+
+
+      <section class="page" id="page-locate">
+        <div class="page-head"><div><div class="eyebrow">Requirement 5</div><h2>代码定位</h2></div></div>
+        <div class="requirement-card"><b>题目要求</b><p>对检测到的明显时间差异，应进一步定位可能来源，包括敏感条件分支、提前返回、可变时间比较函数、数据相关循环、数据相关内存访问、失败路径及异常处理，并说明其与 ML-KEM 解封装流程的对应关系。</p></div>
+        <div class="control-row"><button id="locateButton" class="primary">定位当前目标</button><button id="diffButton">查看对照/改进源码差异</button></div>
+        <div id="locateSummary" class="evidence-box">尚未执行定位</div>
+        <div id="locateFindings" class="finding-list"></div>
+        <div id="diffResult" class="evidence-box command-result">尚未查看源码差异</div>
+      </section>
+
+      <section class="page" id="page-fix">
+        <div class="page-head"><div><div class="eyebrow">Requirement 6 & 7</div><h2>修复对比与复测</h2></div></div>
+        <div class="requirement-card"><b>题目要求</b><p>针对发现的问题，采用固定流程比较、统一处理或掩码选择等方式进行修改；修改后在等价测量环境下重新采集数据，对比不同输入类别之间的时间分布和统计检测结果。</p></div>
+        <div class="control-row"><label>CPU 核<input id="fixCpu" type="number" value="0" min="0" max="31"></label><label>配对次数<input id="fixPairs" type="number" value="1000" min="100" max="20000"></label><button id="fixCompareButton" class="primary">运行前后对比</button></div>
+        <div class="metric-grid"><article><span>对照版本差值(ns)</span><strong id="beforeDiff">-</strong></article><article><span>对照可区分</span><strong id="beforeDist">-</strong></article><article><span>改进版本差值(ns)</span><strong id="afterDiff">-</strong></article><article><span>改进可区分</span><strong id="afterDist">-</strong></article></div>
+        <div id="fixSummary" class="evidence-box">尚未运行前后对比</div>
+      </section>
+
+
+      <section class="page" id="page-performance">
+        <div class="page-head"><div><div class="eyebrow">Requirement 8</div><h2>性能评估</h2></div></div>
+        <div class="requirement-card"><b>题目要求</b><p>分别给出修复前后 ML-KEM 解封装平均运行时间、典型分位数及性能开销，分析安全防护带来的效率代价。</p></div>
+        <div class="control-row"><label>CPU 核<input id="perfCpu" type="number" value="0" min="0" max="31"></label><label>配对次数<input id="perfPairs" type="number" value="1000" min="100" max="20000"></label><button id="perfButton" class="primary">运行性能对比</button></div>
+        <div class="metric-grid"><article><span>对照均值(ns)</span><strong id="perfBeforeMean">-</strong></article><article><span>改进均值(ns)</span><strong id="perfAfterMean">-</strong></article><article><span>开销(ns)</span><strong id="perfOverhead">-</strong></article><article><span>开销比例</span><strong id="perfPercent">-</strong></article></div>
+        <div id="perfResult" class="evidence-box">尚未运行性能评估</div>
+      </section>
+
+      <section class="page" id="page-report">
+        <div class="page-head"><div><div class="eyebrow">Requirement 10 & 11 & 12</div><h2>报告、威胁模型与可复现性</h2></div><button id="reportButton" class="primary">生成报告</button></div>
+        <div class="requirement-card"><b>题目要求</b><p>明确测试条件和观测边界，提供测试程序、测试数据生成方法、实验参数、编译选项和统计分析过程，使评测人员能够复现实验结论，并说明创新点。</p></div>
+        <div class="split"><div><h3>威胁模型</h3><div id="threatBox" class="evidence-box">加载中</div></div><div><h3>可复现步骤</h3><div id="reproBox" class="evidence-box">加载中</div></div></div>
+        <h3>题目要求矩阵</h3><div id="matrixBox" class="evidence-box">加载中</div>
+        <div id="reportResult" class="evidence-box">尚未生成报告</div>
+      </section>
+
+      <section class="page" id="page-evidence">
+        <div class="page-head"><div><div class="eyebrow">Evidence Checklist</div><h2>证据与题目要求对照</h2></div><button id="refreshEvidence">刷新证据</button></div>
+        <div class="evidence-grid">
+          <article><b>基本密码功能</b><span id="evCrypto">KeyGen / Encaps / Decaps 页面展示输出长度、共享结果一致性与连续测试结果。</span></article>
+          <article><b>测试向量</b><span id="evVector">运行公开向量测试后显示来源、检查项和输出尾部。</span></article>
+          <article><b>测量环境</b><span id="evEnv">加载中</span></article>
+          <article><b>统计检测</b><span id="evStats">正式计时页输出均值、分位数、95% 区间和原始结果文件。</span></article>
+          <article><b>样本生成</b><span id="evSamples">样本生成页输出 CSV 和 JSON，可复现实验输入。</span></article>
+          <article><b>多版本对比</b><span id="evTargets">目标实现页展示规范、对照、改进三个版本及就绪状态。</span></article>
+          <article><b>代码定位</b><span id="evLocate">代码定位页输出文件路径、匹配行号和关键代码片段。</span></article>
+          <article><b>修复复测</b><span id="evFix">修复对比页输出对照版本和改进版本的统计检测结果。</span></article>
+          <article><b>性能评估</b><span id="evPerf">性能评估页输出修复前后均值、P50/P95和开销比例。</span></article>
+          <article><b>报告复现</b><span id="evReport">报告复现页生成 Markdown/JSON 报告和要求矩阵。</span></article>
+        </div>
+        <div class="evidence-box" id="environmentBox">正在读取环境信息</div>
+      </section>
     </section>
   </main>
 

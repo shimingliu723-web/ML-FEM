@@ -10,6 +10,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from mlkem_service import PARAMETERS, get_mlkem, run_known_answer_test, run_timing_detection
+from formal_timing import run_formal_timing
+from sample_generator import generate_samples
+from target_manager import list_targets, register_target, run_target_command
+from env_report import get_environment_report
+from code_audit import compare_fix, diff_targets, locate_code, performance_compare
+from reporting import generate_markdown_report, report_payload
+from vector_validation import validate_vectors
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,8 +47,8 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/info":
             self._json(200, {
                 "name": "ML-KEM时间特性检测与防护平台",
-                "version": "0.1.0",
-                "engine": "mlkem-native",
+                "version": "0.2.0",
+                "engine": "multi-target",
                 "parameter_sets": {
                     level: {
                         "public_key_bytes": p.public_key,
@@ -52,6 +59,17 @@ class Handler(SimpleHTTPRequestHandler):
                     for level, p in PARAMETERS.items()
                 },
             })
+            return
+
+
+        if path == "/api/targets":
+            self._json(200, {"ok": True, "targets": list_targets()})
+            return
+        if path == "/api/environment":
+            self._json(200, {"ok": True, "environment": get_environment_report()})
+            return
+        if path == "/api/report-preview":
+            self._json(200, {"ok": True, "report": report_payload()})
             return
 
         relative = "index.html" if path == "/" else path.lstrip("/")
@@ -90,6 +108,52 @@ class Handler(SimpleHTTPRequestHandler):
                 result = run_known_answer_test()
             elif path == "/api/timing-detect":
                 result = run_timing_detection(int(body.get("cpu", 0)), int(body.get("timeout_seconds", 600)))
+            elif path == "/api/target-build":
+                result = run_target_command(str(body.get("target_id", "mlkem_native_baseline")), "build")
+            elif path == "/api/target-selftest":
+                result = run_target_command(str(body.get("target_id", "mlkem_native_baseline")), "selftest")
+            elif path == "/api/register-target":
+                result = register_target(body)
+            elif path == "/api/vector-validate":
+                result = validate_vectors(
+                    str(body.get("vectors", "")),
+                    level,
+                    str(body.get("target_id", "mlkem_native_baseline")),
+                )
+            elif path == "/api/generate-samples":
+                result = generate_samples(
+                    str(body.get("target_id", "mlkem_native_baseline")),
+                    level,
+                    int(body.get("count", 32)),
+                )
+            elif path == "/api/formal-timing":
+                result = run_formal_timing(
+                    level,
+                    int(body.get("pairs", 10000)),
+                    int(body.get("cpu", 0)),
+                    str(body.get("target_id", "mlkem_native_baseline")),
+                )
+            elif path == "/api/code-locate":
+                result = locate_code(str(body.get("target_id", "mlkem_native_baseline")))
+            elif path == "/api/fix-diff":
+                result = diff_targets(
+                    str(body.get("before_id", "variant_early_return")),
+                    str(body.get("after_id", "variant_fixed")),
+                )
+            elif path == "/api/fix-compare":
+                result = compare_fix(
+                    level,
+                    int(body.get("pairs", 1000)),
+                    int(body.get("cpu", 0)),
+                )
+            elif path == "/api/performance-compare":
+                result = performance_compare(
+                    level,
+                    int(body.get("pairs", 1000)),
+                    int(body.get("cpu", 0)),
+                )
+            elif path == "/api/report-generate":
+                result = generate_markdown_report()
             else:
                 self._json(404, {"ok": False, "error": "接口不存在"})
                 return

@@ -1,0 +1,17 @@
+{
+  "id": "variant_fixed",
+  "name": "改进实现：固定流程版本",
+  "role": "fixed",
+  "description": "预留给改进后目标实现，要求保持功能语义不变，用于前后对比复测。当前未内置库时显示为未就绪。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/variant_fixed/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/variant_fixed/build.sh"
+  ],
+  "selftest": []
+}
