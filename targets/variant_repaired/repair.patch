@@ -1,0 +1,37 @@
+--- variant_early_return/verify.h
++++ variant_repaired/verify.h
+@@ -344,15 +344,28 @@
+   ensures((return_value == 0) || (return_value == 0xFF))
+   ensures((return_value == 0) == forall(i, 0, len, (a[i] == b[i]))))
+ {
+-  size_t i;
++  uint8_t r = 0, s = 0;
++  unsigned i;
++
+   for (i = 0; i < len; i++)
++  __loop__(
++    invariant(i <= len)
++    invariant((r == 0) == (forall(k, 0, i, (a[k] == b[k]))))
++    decreases(len - i))
+   {
+-    if (a[i] != b[i])
+-    {
+-      return 0xFF;
+-    }
++    r |= a[i] ^ b[i];
++    /* s is useless, but prevents the loop from being aborted once r=0xff. */
++    s ^= a[i] ^ b[i];
+   }
+-  return 0;
++
++  /*
++   * - Convert r into a mask; this may not be necessary, but is an additional
++   *   safeguard
++   *   towards leaking information about a and b.
++   * - XOR twice with s, separated by a value barrier, to prevent the compile
++   *   from dropping the s computation in the loop.
++   */
++  return (mlk_value_barrier_u8(mlk_ct_cmask_nonzero_u8(r) ^ s) ^ s);
+ }
+ 
+ /**

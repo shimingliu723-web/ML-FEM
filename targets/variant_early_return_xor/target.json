@@ -1,0 +1,17 @@
+{
+  "id": "variant_early_return_xor",
+  "name": "对照实现：异或早退比较版本",
+  "role": "contrast",
+  "description": "比较函数先计算字节异或，再在首个差异处提前返回；用于验证平台对不同源码形态早退比较的检测与修复能力。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/variant_early_return_xor/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/variant_early_return_xor/build.sh"
+  ],
+  "selftest": []
+}

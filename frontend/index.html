@@ -139,8 +139,8 @@
 
       <section class="page" id="page-fix">
         <div class="page-head"><div><div class="eyebrow">Requirement 6 & 7</div><h2>修复对比与复测</h2></div></div>
-        <div class="requirement-card"><b>题目要求</b><p>针对发现的问题，采用固定流程比较、统一处理或掩码选择等方式进行修改；修改后在等价测量环境下重新采集数据，对比不同输入类别之间的时间分布和统计检测结果。</p></div>
-        <div class="control-row"><label>CPU 核<input id="fixCpu" type="number" value="0" min="0" max="31"></label><label>配对次数<input id="fixPairs" type="number" value="1000" min="100" max="20000"></label><button id="fixCompareButton" class="primary">运行前后对比</button></div>
+        <div class="requirement-card"><b>题目要求</b><p>针对发现的问题，采用固定流程比较、统一处理或掩码选择等方式进行修改；修改后在等价测量环境下重新采集数据，对比不同输入类别之间的时间分布和统计检测结果。平台只记录文件位置、补丁摘要和统计结果，不记录私钥、中间状态或完整样本。</p></div>
+        <div class="control-row"><label>待修复目标ID<input id="repairBeforeId" value="variant_early_return"></label><label>CPU 核<input id="fixCpu" type="number" value="0" min="0" max="31"></label><label>配对次数<input id="fixPairs" type="number" value="1000" min="100" max="20000"></label><button id="repairButton" class="ghost">生成修复目标</button><button id="fixCompareButton" class="primary">修复并运行前后对比</button></div>
         <div class="metric-grid"><article><span>对照版本差值(ns)</span><strong id="beforeDiff">-</strong></article><article><span>对照可区分</span><strong id="beforeDist">-</strong></article><article><span>改进版本差值(ns)</span><strong id="afterDiff">-</strong></article><article><span>改进可区分</span><strong id="afterDist">-</strong></article></div>
         <div id="fixSummary" class="evidence-box">尚未运行前后对比</div>
       </section>

@@ -98,16 +98,27 @@ $("diffButton").addEventListener("click", event => busy(event.currentTarget, asy
   log("源码差异", `${result.before_id} -> ${result.after_id}`);
 }));
 
+
+$("repairButton").addEventListener("click", event => busy(event.currentTarget, async () => {
+  const beforeId = $("repairBeforeId").value.trim() || "variant_early_return";
+  const cpu = Number($("fixCpu").value);
+  const result = await api("/api/repair-target", { before_id: beforeId, cpu, overwrite: true, validate_pairs: 100 });
+  await loadTargets();
+  $("fixSummary").innerHTML = `<b>修复目标已生成</b><br>原目标：${result.before_id}<br>修复目标：${result.repaired_id}<br>修复类型：${result.repair_type}<br>补丁摘要：${result.patch_sha256}<br>补丁文件：${result.patch_file}<br>构建：${result.build.success ? "成功" : "失败"}<br>日志策略：${result.logging_policy}<div class="code-lines">${htmlLines(result.diff_preview || [])}</div>`;
+  log("生成修复目标", `${result.before_id} → ${result.repaired_id}`);
+}));
+
 $("fixCompareButton").addEventListener("click", event => busy(event.currentTarget, async () => {
   const cpu = Number($("fixCpu").value);
   const pairs = Number($("fixPairs").value);
-  const result = await api("/api/fix-compare", { cpu, pairs });
+  const beforeId = $("repairBeforeId").value.trim() || "variant_early_return";
+  const result = await api("/api/fix-compare", { before_id: beforeId, cpu, pairs, overwrite: true });
   const summary = result.summary;
   $("beforeDiff").textContent = fmt(summary.before_diff_ns);
   $("beforeDist").textContent = summary.before_distinguishable ? "是" : "否";
   $("afterDiff").textContent = fmt(summary.after_diff_ns);
   $("afterDist").textContent = summary.after_distinguishable ? "是" : "否";
-  $("fixSummary").innerHTML = `<b>前后复测完成</b><br>参数：${result.level}，配对次数：${result.pairs}，CPU：${result.cpu}<br>对照版本：${result.before.target_name}<br>差值：${fmt(summary.before_diff_ns)} ns，95% CI：[${fmt(result.before.analysis.paired_difference_ci95_ns[0])}, ${fmt(result.before.analysis.paired_difference_ci95_ns[1])}] ns，可区分：${summary.before_distinguishable ? "是" : "否"}<br>改进版本：${result.after.target_name}<br>差值：${fmt(summary.after_diff_ns)} ns，95% CI：[${fmt(result.after.analysis.paired_difference_ci95_ns[0])}, ${fmt(result.after.analysis.paired_difference_ci95_ns[1])}] ns，可区分：${summary.after_distinguishable ? "是" : "否"}<br>绝对差值降低：${fmt(summary.absolute_diff_reduction_ns)} ns<br>对照报告：${result.before.report_json}<br>改进报告：${result.after.report_json}`;
+  $("fixSummary").innerHTML = `<b>修复闭环完成</b><br>原目标：${result.repair.before_id}<br>修复目标：${result.repair.repaired_id}<br>补丁摘要：${result.repair.patch_sha256}<br>参数：${result.level}，配对次数：${result.pairs}，CPU：${result.cpu}<br>对照版本：${result.before.target_name}<br>差值：${fmt(summary.before_diff_ns)} ns，95% CI：[${fmt(result.before.analysis.paired_difference_ci95_ns[0])}, ${fmt(result.before.analysis.paired_difference_ci95_ns[1])}] ns，可区分：${summary.before_distinguishable ? "是" : "否"}<br>修复版本：${result.after.target_name}<br>差值：${fmt(summary.after_diff_ns)} ns，95% CI：[${fmt(result.after.analysis.paired_difference_ci95_ns[0])}, ${fmt(result.after.analysis.paired_difference_ci95_ns[1])}] ns，可区分：${summary.after_distinguishable ? "是" : "否"}<br>正式检验：${summary.before_formal_verdict || "-"}<br>修复后检验：${summary.after_formal_verdict || "-"}<br>绝对差值降低：${fmt(summary.absolute_diff_reduction_ns)} ns<br>对照报告：${result.before.report_json}<br>修复报告：${result.after.report_json}<br>日志策略：${result.repair.logging_policy}`;
   $("evFix").textContent = `最近一次前后复测：${result.level}，对照差值 ${fmt(summary.before_diff_ns)} ns，改进差值 ${fmt(summary.after_diff_ns)} ns`;
   log("修复前后复测", `${result.level} · ${pairs} pairs`);
 }));

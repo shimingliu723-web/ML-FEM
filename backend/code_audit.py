@@ -7,6 +7,7 @@ from pathlib import Path
 
 from formal_timing import run_formal_timing
 from target_manager import get_target
+from repair_manager import generate_repair
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -93,7 +94,7 @@ def locate_code(target_id: str) -> dict:
     }
 
 
-def diff_targets(before_id: str = "variant_early_return", after_id: str = "variant_fixed") -> dict:
+def diff_targets(before_id: str = "variant_early_return", after_id: str = "variant_repaired") -> dict:
     before = _target_source_root(before_id) / "src" / "verify.h"
     after = _target_source_root(after_id) / "src" / "verify.h"
     if not before.is_file() or not after.is_file():
@@ -122,8 +123,9 @@ def diff_targets(before_id: str = "variant_early_return", after_id: str = "varia
 def compare_fix(level: str = "512", pairs: int = 1000, cpu: int = 0) -> dict:
     if pairs < 100 or pairs > 20000:
         raise ValueError("前后对比配对次数应在100到20000之间")
+    generate_repair("variant_early_return", "variant_repaired", overwrite=True, build=True, validate_pairs=100, cpu=cpu)
     before = run_formal_timing(level, pairs, cpu, "variant_early_return")
-    after = run_formal_timing(level, pairs, cpu, "variant_fixed")
+    after = run_formal_timing(level, pairs, cpu, "variant_repaired")
     b = before["analysis"]
     a = after["analysis"]
     return {

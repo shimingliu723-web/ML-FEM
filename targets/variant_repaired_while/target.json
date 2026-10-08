@@ -1,0 +1,18 @@
+{
+  "id": "variant_repaired_while",
+  "name": "修复实现：对照实现：while 早退比较版本",
+  "role": "repaired",
+  "description": "由平台自动生成的修复目标：将早退比较替换为完整扫描与掩码汇总的固定流程写法。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/variant_repaired_while/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/variant_repaired_while/build.sh"
+  ],
+  "selftest": [],
+  "repair_from": "variant_early_return_while"
+}

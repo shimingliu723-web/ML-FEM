@@ -17,6 +17,7 @@ from env_report import get_environment_report
 from code_audit import compare_fix, diff_targets, locate_code, performance_compare
 from reporting import generate_markdown_report, report_payload
 from vector_validation import validate_vectors
+from repair_manager import generate_repair, repair_and_compare
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -138,13 +139,24 @@ class Handler(SimpleHTTPRequestHandler):
             elif path == "/api/fix-diff":
                 result = diff_targets(
                     str(body.get("before_id", "variant_early_return")),
-                    str(body.get("after_id", "variant_fixed")),
+                    str(body.get("after_id", "variant_repaired")),
+                )
+            elif path == "/api/repair-target":
+                result = generate_repair(
+                    str(body.get("before_id") or body.get("target_id") or "variant_early_return"),
+                    str(body.get("repaired_id") or "") or None,
+                    bool(body.get("overwrite", True)),
+                    True,
+                    int(body.get("validate_pairs", 100)),
+                    int(body.get("cpu", 0)),
                 )
             elif path == "/api/fix-compare":
-                result = compare_fix(
+                result = repair_and_compare(
+                    str(body.get("before_id") or "variant_early_return"),
                     level,
                     int(body.get("pairs", 1000)),
                     int(body.get("cpu", 0)),
+                    bool(body.get("overwrite", True)),
                 )
             elif path == "/api/performance-compare":
                 result = performance_compare(
