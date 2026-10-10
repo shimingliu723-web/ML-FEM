@@ -140,7 +140,8 @@ def main() -> int:
     basic = {}
     for level in ["512", "768", "1024"]:
         basic[level] = get_mlkem(level).selftest(20)
-        item(f"ML-KEM-{level}", f"{basic[level]['passed']}/{basic[level]['total']} passed; avg(ns)={basic[level]['average_ns']}")
+        total = basic[level].get("total", basic[level].get("iterations", "?"))
+        item(f"ML-KEM-{level}", f"{basic[level]['passed']}/{total} passed; avg(ns)={basic[level]['average_ns']}")
     vectors = run_known_answer_test()
     summary["basic"] = basic
     summary["known_answer_test"] = vectors

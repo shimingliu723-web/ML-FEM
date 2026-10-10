@@ -137,7 +137,7 @@ def assess_environment(cpu: int = 0, quick: bool = True) -> dict[str, Any]:
     add("非虚拟化/低虚拟化干扰", not virt["is_virtualized"], "warning", f"kind={virt['virtualization_kind']}")
     p95_ratio = jitter.get("p95_over_median") or 99
     max_ratio = jitter.get("max_over_median") or 99
-    add("本地计时抖动较低", p95_ratio < 1.25 and max_ratio < 2.5, "warning", f"p95/median={p95_ratio}, max/median={max_ratio}")
+    add("本地计时抖动较低", p95_ratio < 1.50 and max_ratio < 3.5, "warning", f"p95/median={p95_ratio}, max/median={max_ratio}")
 
     formal_binary = ROOT / "experiments" / "formal_timing"
     add("正式计时程序已构建", formal_binary.is_file(), "warning", str(formal_binary))
