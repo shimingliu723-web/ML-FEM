@@ -48,7 +48,7 @@ from mlkem_service import get_mlkem, run_known_answer_test
 from repair_manager import generate_repair, repair_and_compare
 from reporting import generate_markdown_report, report_payload
 from sample_generator import generate_samples
-from target_manager import list_targets, run_target_command
+from target_manager import list_targets, register_target, run_target_command
 
 APP_TITLE = "ML-KEM 时间侧信道检测与防护工具"
 
@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
 
         self.nav = QListWidget()
         self.nav.setObjectName("nav")
-        for name in ["总览", "环境自检", "基础功能", "样本生成", "时间检测", "泄露定位", "自动修复", "性能评估", "报告导出"]:
+        for name in ["总览", "目标接入", "环境自检", "基础功能", "样本生成", "时间检测", "泄露定位", "自动修复", "性能评估", "报告导出"]:
             QListWidgetItem(name, self.nav)
         self.nav.currentRowChanged.connect(self._switch_page)
         side_layout.addWidget(self.nav, 1)
@@ -170,6 +170,7 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.pages = [
             self._overview_page(),
+            self._target_page(),
             self._env_check_page(),
             self._crypto_page(),
             self._samples_page(),
@@ -206,10 +207,59 @@ class MainWindow(QMainWindow):
         self.overviewText = QTextEdit(); self.overviewText.setReadOnly(True)
         self.overviewText.setHtml("""
         <h3>作品定位</h3>
-        <p>本工具是面向 ML-KEM 解封装实现的本地可视化检测与防护软件，支持基本功能验证、样本生成、时间检测、源码/二进制定位、模式化修复、复测和报告导出。</p>
+        <p>本工具是面向 ML-KEM 解封装实现的本地可视化检测与防护软件，支持目标实现接入、基本功能验证、样本生成、时间检测、源码/二进制定位、模式化修复、复测和报告导出。</p>
+        <p><b>输入：</b>内置或用户接入的 ML-KEM 实现、参数集、样本规则、计时次数、CPU 核、修复策略。</p>
+        <p><b>输出：</b>功能验证结果、时间统计报告、定位证据、修复补丁、修复前后对比和可复现报告。</p>
         <p><b>交付特点：</b>不依赖队伍服务器；可在本地 Linux/WSL2 环境部署；现场演示可加载预置结果或运行小规模实验。</p>
         """)
         layout.addWidget(self.overviewText, 1)
+        return page
+
+    def _target_page(self) -> QWidget:
+        page = QWidget(); layout = QVBoxLayout(page)
+        intro = QTextEdit(); intro.setReadOnly(True); intro.setMaximumHeight(115)
+        intro.setHtml("""
+        <p><b>模块作用：</b>管理平台内置目标，并接入用户自己的 ML-KEM 实现。</p>
+        <p>被测实现需要提供可调用的动态库路径模板，例如 <code>/path/to/libmlkem{level}.so</code>；平台将基于该目标执行样本生成、时间检测、定位和报告流程。</p>
+        """)
+        layout.addWidget(intro)
+
+        grid = QGridLayout()
+        self.regId = QLineEdit("custom_mlkem")
+        self.regName = QLineEdit("自定义 ML-KEM 实现")
+        self.regRole = QComboBox(); self.regRole.addItems(["custom", "baseline", "contrast", "repaired"])
+        self.regLevels = QLineEdit("512,768,1024")
+        self.regLib = QLineEdit(str(ROOT / "backend" / "lib" / "libmlkem{level}.so"))
+        self.regBuild = QLineEdit("make all")
+        self.regSelftest = QLineEdit("")
+        fields = [
+            ("目标ID", self.regId), ("显示名称", self.regName), ("类型", self.regRole),
+            ("参数集", self.regLevels), ("动态库路径模板", self.regLib),
+            ("构建命令", self.regBuild), ("自测命令", self.regSelftest),
+        ]
+        for i, (label, widget) in enumerate(fields):
+            grid.addWidget(QLabel(label), i, 0)
+            grid.addWidget(widget, i, 1)
+        layout.addLayout(grid)
+
+        row = QHBoxLayout()
+        reg = button("注册/更新目标", True)
+        build = button("构建当前目标")
+        selftest = button("运行当前目标自测")
+        refresh = button("刷新目标列表")
+        reg.clicked.connect(lambda: self.run_task("注册目标", self.register_current_target, self.show_register_result))
+        build.clicked.connect(lambda: self.run_task("构建当前目标", lambda: run_target_command(self.target(), "build"), self.show_json))
+        selftest.clicked.connect(lambda: self.run_task("运行当前目标自测", lambda: run_target_command(self.target(), "selftest"), self.show_json))
+        refresh.clicked.connect(lambda: self.run_task("刷新目标列表", lambda: {"targets": list_targets()}, self.show_targets))
+        row.addWidget(reg); row.addWidget(build); row.addWidget(selftest); row.addWidget(refresh); row.addStretch()
+        layout.addLayout(row)
+
+        grid2 = QGridLayout()
+        self.targetCards = {k: Card(k) for k in ["目标数量", "当前目标", "目标类型", "库文件状态", "配置文件", "说明"]}
+        for i, c in enumerate(self.targetCards.values()): grid2.addWidget(c, i//3, i%3)
+        layout.addLayout(grid2)
+        self.targetOut = QTextEdit(); self.targetOut.setReadOnly(True)
+        layout.addWidget(self.targetOut, 1)
         return page
 
     def _env_check_page(self) -> QWidget:
@@ -356,6 +406,40 @@ class MainWindow(QMainWindow):
         if idx >= 0: self.targetBox.setCurrentIndex(idx)
         self.ovTarget.set(self.target()) if hasattr(self, "ovTarget") else None
         self.ovLevel.set("ML-KEM-" + self.level()) if hasattr(self, "ovLevel") else None
+        self.update_target_cards() if hasattr(self, "targetCards") else None
+
+    def selected_target_info(self) -> dict:
+        current = self.target()
+        for target in self.targets:
+            if target.get("id") == current:
+                return target
+        return {}
+
+    def update_target_cards(self) -> None:
+        info = self.selected_target_info()
+        libs = info.get("libraries", {})
+        ok_count = sum(1 for ok in libs.values() if ok)
+        lib_status = f"{ok_count}/{len(libs)} 已存在" if libs else "未检查"
+        self.targetCards["目标数量"].set(len(self.targets))
+        self.targetCards["当前目标"].set(info.get("id", self.target()))
+        self.targetCards["目标类型"].set(info.get("role", "-"))
+        self.targetCards["库文件状态"].set(lib_status)
+        self.targetCards["配置文件"].set(info.get("config", "-"))
+        self.targetCards["说明"].set(info.get("description", "-"))
+
+    def register_current_target(self) -> dict:
+        levels = [x.strip() for x in self.regLevels.text().split(",") if x.strip()]
+        payload = {
+            "id": self.regId.text().strip(),
+            "name": self.regName.text().strip(),
+            "role": self.regRole.currentText(),
+            "levels": levels,
+            "library_template": self.regLib.text().strip(),
+            "build_command": self.regBuild.text().strip(),
+            "selftest_command": self.regSelftest.text().strip(),
+            "description": "用户通过桌面端接入的 ML-KEM 实现，可作为平台检测、定位和报告流程的输入目标。",
+        }
+        return register_target(payload)
 
     def run_task(self, name: str, fn: Callable[[], Any], on_ok: Callable[[Any], None]) -> None:
         self.status.setText(f"正在执行：{name}")
@@ -384,6 +468,19 @@ class MainWindow(QMainWindow):
         for box in page.findChildren(QTextEdit):
             box.setPlainText(text)
             return
+
+    def show_register_result(self, result: Any) -> None:
+        self.refresh_targets()
+        target_id = result.get("target") if isinstance(result, dict) else None
+        if target_id:
+            idx = self.targetBox.findData(target_id)
+            if idx >= 0:
+                self.targetBox.setCurrentIndex(idx)
+        self.show_json(result)
+
+    def show_targets(self, result: Any) -> None:
+        self.refresh_targets()
+        self.show_json(result)
 
     def run_demo(self) -> None:
         def job():
