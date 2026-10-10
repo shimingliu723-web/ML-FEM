@@ -239,7 +239,7 @@ def main() -> int:
     item("JSON报告", report_path)
     item("Markdown总结", markdown_path)
     item("SVG图", chart_path)
-    print("\n建议截图：从“步骤5：时间检测与统计检验”到“测试总给”各截一张；SVG 图可放入报告。")
+    print("\n建议截图：从“步骤5：时间检测与统计检验”到“测试总结”各截一张；SVG 图可放入报告。")
     return 0
 
 
