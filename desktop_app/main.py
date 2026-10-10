@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 
 from binary_audit import binary_locate
 from code_audit import diff_targets, locate_code, performance_compare
+from env_check import assess_environment
 from env_report import get_environment_report
 from formal_timing import run_formal_timing
 from mlkem_service import get_mlkem, run_known_answer_test
@@ -136,7 +137,7 @@ class MainWindow(QMainWindow):
 
         self.nav = QListWidget()
         self.nav.setObjectName("nav")
-        for name in ["总览", "基础功能", "样本生成", "时间检测", "泄露定位", "自动修复", "性能评估", "报告导出"]:
+        for name in ["总览", "环境自检", "基础功能", "样本生成", "时间检测", "泄露定位", "自动修复", "性能评估", "报告导出"]:
             QListWidgetItem(name, self.nav)
         self.nav.currentRowChanged.connect(self._switch_page)
         side_layout.addWidget(self.nav, 1)
@@ -169,6 +170,7 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.pages = [
             self._overview_page(),
+            self._env_check_page(),
             self._crypto_page(),
             self._samples_page(),
             self._timing_page(),
@@ -208,6 +210,29 @@ class MainWindow(QMainWindow):
         <p><b>交付特点：</b>不依赖队伍服务器；可在本地 Linux/WSL2 环境部署；现场演示可加载预置结果或运行小规模实验。</p>
         """)
         layout.addWidget(self.overviewText, 1)
+        return page
+
+    def _env_check_page(self) -> QWidget:
+        page = QWidget(); layout = QVBoxLayout(page)
+        row = QHBoxLayout()
+        self.envCpuBox = QSpinBox(); self.envCpuBox.setRange(0, 255); self.envCpuBox.setValue(0)
+        run = button("运行环境自检", True)
+        run.clicked.connect(lambda: self.run_task("环境自检", lambda: assess_environment(self.envCpuBox.value()), self.show_env_check))
+        row.addWidget(QLabel("目标 CPU")); row.addWidget(self.envCpuBox); row.addWidget(run); row.addStretch()
+        layout.addLayout(row)
+        grid = QGridLayout()
+        self.envCards = {k: Card(k) for k in ["总体等级", "正式计时", "推荐用途", "虚拟化", "频率策略", "抖动指标"]}
+        for i, c in enumerate(self.envCards.values()): grid.addWidget(c, i//3, i%3)
+        layout.addLayout(grid)
+        tip = QTextEdit(); tip.setReadOnly(True)
+        tip.setMaximumHeight(110)
+        tip.setHtml("""
+        <p><b>模块作用：</b>判断当前环境是否适合作为正式高精度计时实验环境。</p>
+        <p>普通 WSL2/虚拟机仍可用于功能演示、样本生成、定位和修复流程验证；正式计时结论建议在 CPU 调度稳定、可固定核心、后台干扰较低的 Linux 服务器或真实 Linux 主机上生成。</p>
+        """)
+        layout.addWidget(tip)
+        self.envOut = QTextEdit(); self.envOut.setReadOnly(True)
+        layout.addWidget(self.envOut, 1)
         return page
 
     def _crypto_page(self) -> QWidget:
@@ -388,6 +413,19 @@ class MainWindow(QMainWindow):
         self.timingCards["正式检验"].set("显著" if verdict.get("statistically_significant") else "未显著")
         self.timingCards["报告路径"].set(result.get("report_json"))
         self.timingOut.setPlainText(json.dumps(result, ensure_ascii=False, indent=2))
+
+    def show_env_check(self, result: dict) -> None:
+        grade_map = {"green": "绿色：适合正式计时", "yellow": "黄色：仅建议功能演示", "red": "红色：基础环境不完整"}
+        self.envCards["总体等级"].set(grade_map.get(result.get("grade"), result.get("grade")))
+        self.envCards["正式计时"].set("适合" if result.get("formal_timing_ready") else "不建议")
+        self.envCards["推荐用途"].set(result.get("recommended_use"))
+        virt = result.get("virtualization", {})
+        self.envCards["虚拟化"].set(virt.get("virtualization_kind"))
+        freq = result.get("cpu_frequency", {})
+        self.envCards["频率策略"].set(freq.get("governor"))
+        jitter = result.get("jitter_probe", {})
+        self.envCards["抖动指标"].set(f"p95/median={jitter.get('p95_over_median')}, max/median={jitter.get('max_over_median')}")
+        self.envOut.setPlainText(json.dumps(result, ensure_ascii=False, indent=2))
 
     def show_repair(self, result: dict) -> None:
         s = result["summary"]
