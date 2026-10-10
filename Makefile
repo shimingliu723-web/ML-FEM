@@ -6,9 +6,9 @@ COMMON_FLAGS := -O3 -fPIC -std=c99 -Wall -Wextra -Wpedantic \
 	-I$(MLKEM_DIR) -DMLK_CONFIG_NAMESPACE_PREFIX=mlkem
 SOURCE := $(MLKEM_DIR)/mlkem_native.c $(PROJECT_ROOT)/core/randombytes.c
 
-.PHONY: all clean formal-timing
+.PHONY: all clean formal-timing input-classification
 
-all: $(LIB_DIR)/libmlkem512.so $(LIB_DIR)/libmlkem768.so $(LIB_DIR)/libmlkem1024.so formal-timing
+all: $(LIB_DIR)/libmlkem512.so $(LIB_DIR)/libmlkem768.so $(LIB_DIR)/libmlkem1024.so formal-timing input-classification
 
 $(LIB_DIR):
 	mkdir -p $@
@@ -27,5 +27,10 @@ formal-timing: experiments/formal_timing
 experiments/formal_timing: experiments/formal_timing.c
 	$(CC) -O3 -std=c99 -Wall -Wextra -Wpedantic $< -ldl -o $@
 
+input-classification: experiments/input_classification
+
+experiments/input_classification: experiments/input_classification.c
+	$(CC) -O3 -std=c99 -Wall -Wextra -Wpedantic $< -ldl -o $@
+
 clean:
-	rm -f $(LIB_DIR)/libmlkem512.so $(LIB_DIR)/libmlkem768.so $(LIB_DIR)/libmlkem1024.so experiments/formal_timing
+	rm -f $(LIB_DIR)/libmlkem512.so $(LIB_DIR)/libmlkem768.so $(LIB_DIR)/libmlkem1024.so experiments/formal_timing experiments/input_classification

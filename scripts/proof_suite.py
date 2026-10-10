@@ -19,6 +19,7 @@ from binary_audit import binary_locate
 from code_audit import locate_code
 from env_check import assess_environment
 from formal_timing import run_formal_timing
+from input_classification import run_input_classification
 from mlkem_service import get_mlkem, run_known_answer_test
 from repair_manager import repair_and_compare
 from sample_generator import generate_samples
@@ -229,6 +230,19 @@ def main() -> int:
     item("密文长度", f"{samples['ciphertext_bytes']} bytes")
     item("样本报告", samples["report_json"])
 
+    banner("步骤4B：输入分类计时实验")
+    classification = run_input_classification(
+        args.level,
+        samples=args.sample_count,
+        repeats=args.pairs,
+        cpu=args.cpu,
+        target_id="variant_early_return",
+    )
+    summary["input_classification"] = classification
+    for name, row in classification["class_summary"].items():
+        item(name, f"mean={row['mean_ns']:.2f} ns; p50={row['p50_ns']:.2f} ns; p95={row['p95_ns']:.2f} ns; Δnormal={row['mean_delta_vs_normal_ns']:.2f} ns")
+    item("分类图", classification["chart_svg"])
+
     banner("步骤5：时间检测与统计检验")
     baseline_timing = run_formal_timing(args.level, args.pairs, args.cpu, "mlkem_native_baseline")
     contrast_targets = ["variant_early_return", "variant_early_return_xor", "variant_early_return_while"]
@@ -344,6 +358,7 @@ def main() -> int:
             f"- 官方 ACVP 验证：{official_acvp.get('message')}",
             f"- 平台直验官方 decap 向量：{direct_vectors['passed']}/{direct_vectors['total']} passed",
             f"- 样本类别：{', '.join(samples['sample_classes'])}",
+            f"- 输入分类图：`{classification['chart_svg']}`",
             f"- 规范实现差值：{base_a['paired_mean_difference_ns']:.2f} ns；可区分：{base_a['statistically_distinguishable']}",
             f"- 对照实现差值：{con_a['paired_mean_difference_ns']:.2f} ns；可区分：{con_a['statistically_distinguishable']}",
             f"- 对照条件跳转：{binary_before['conditional_jump_count']}；规范条件跳转：{binary_after['conditional_jump_count']}",
@@ -364,6 +379,7 @@ def main() -> int:
     item("基本功能", "PASS")
     item("公开向量", f"内置 {vectors['checks_passed']}/{vectors['checks_total']} PASS；平台直验 {direct_vectors['passed']}/{direct_vectors['total']} PASS；ACVP {official_acvp.get('message')}")
     item("样本生成", f"{len(samples['sample_classes'])} 类等长样本")
+    item("输入分类", classification["chart_svg"])
     item("时间检测", f"规范实现可区分={base_a['statistically_distinguishable']}；对照实现可区分={con_a['statistically_distinguishable']}")
     item("泄露定位", f"源码={source_location['compare_style']}；二进制条件跳转 {binary_before['conditional_jump_count']} vs {binary_after['conditional_jump_count']}")
     item("修复闭环", f"{rsum['before_diff_ns']:.2f} ns → {rsum['after_diff_ns']:.2f} ns")
