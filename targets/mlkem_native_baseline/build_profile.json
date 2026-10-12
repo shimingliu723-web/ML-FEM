@@ -1,0 +1,14 @@
+{
+  "compiler": "gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0",
+  "optimization_flags": "-O3 -fPIC -std=c99 -Wall -Wextra -Wpedantic",
+  "command": [
+    "make",
+    "all"
+  ],
+  "library_sha256": {
+    "512": "1cfbc8af77f7db4104459e445bb2e0e851f07b4e005984e648485ab487c95dea",
+    "768": "5fe72bf4ebb955181bad6831acb7201e2a4aa5c85eaade4b494636c2a19fc1bb",
+    "1024": "fc574b122fab2b7939f42b88337dbbec61bcb0eb84c4bc1913585408e64d10de"
+  },
+  "source_family": "mlkem-native controlled variants; not independent implementations"
+}

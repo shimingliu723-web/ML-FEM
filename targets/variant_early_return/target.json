@@ -1,0 +1,17 @@
+{
+  "id": "variant_early_return",
+  "name": "对照实现：早退比较版本",
+  "role": "contrast",
+  "description": "预留给队友实现的对照目标，用于验证平台对实现差异的识别能力。当前未内置库时显示为未就绪。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/variant_early_return/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/variant_early_return/build.sh"
+  ],
+  "selftest": []
+}

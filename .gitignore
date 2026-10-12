@@ -1,33 +1,25 @@
-# Runtime outputs
 results/
+.venv/
+venv/
+.env
+__pycache__/
+*.pyc
 *.log
 *.pid
-*.jsonl
-
-# Python cache
-__pycache__/
-*.py[cod]
-
-# Build artifacts
+*.so
 *.o
 *.a
-*.so
-*.dylib
 *.dll
 *.exe
 build/
 dist/
-
-# Local environment
-.env
-.venv/
-venv/
-.DS_Store
-
-# Experiment generated files
+*.tar.gz
+experiments/software_measure
+experiments/formal_timing
+experiments/input_classification
+targets/custom_*/
+targets/repair_*/
 experiments/clangover-poc/clangover-*
 experiments/clangover-poc/attack_log.jsonl
 experiments/clangover-poc/.ref_built
 experiments/clangover-poc/.liboqs_built
-experiments/clangover-poc/kyber/ref/lib/
-experiments/clangover-poc/liboqs/build/

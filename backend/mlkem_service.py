@@ -65,12 +65,12 @@ def _record(operation: str, level: str, elapsed_ns: int, success: bool) -> None:
 
 
 class MLKEM:
-    def __init__(self, level: str):
+    def __init__(self, level: str, library_path: Path | None = None):
         if level not in PARAMETERS:
             raise ValueError("参数集必须是512、768或1024")
         self.level = level
         self.params = PARAMETERS[level]
-        lib_path = LIB_DIR / f"libmlkem{level}.so"
+        lib_path = library_path or (LIB_DIR / f"libmlkem{level}.so")
         if not lib_path.exists():
             raise RuntimeError(f"缺少核心库：{lib_path}")
         self.lib = ctypes.CDLL(str(lib_path))
@@ -87,13 +87,14 @@ class MLKEM:
         array_type = ctypes.c_uint8 * size
         return array_type(*data) if data is not None else array_type()
 
-    def keygen(self) -> dict:
+    def keygen(self, record: bool = True) -> dict:
         pk = self._array(self.params.public_key)
         sk = self._array(self.params.secret_key)
         start = time.perf_counter_ns()
         rc = self.lib.mlkem_keypair(pk, sk)
         elapsed = time.perf_counter_ns() - start
-        _record("keygen", self.level, elapsed, rc == 0)
+        if record:
+            _record("keygen", self.level, elapsed, rc == 0)
         if rc != 0:
             raise RuntimeError(f"密钥生成失败，返回码{rc}")
         return {
@@ -105,7 +106,7 @@ class MLKEM:
             "elapsed_ns": elapsed,
         }
 
-    def encaps(self, public_key: str) -> dict:
+    def encaps(self, public_key: str, record: bool = True) -> dict:
         pk_bytes = _from_b64(public_key, self.params.public_key, "公钥")
         pk = self._array(self.params.public_key, pk_bytes)
         ct = self._array(self.params.ciphertext)
@@ -113,7 +114,8 @@ class MLKEM:
         start = time.perf_counter_ns()
         rc = self.lib.mlkem_enc(ct, ss, pk)
         elapsed = time.perf_counter_ns() - start
-        _record("encaps", self.level, elapsed, rc == 0)
+        if record:
+            _record("encaps", self.level, elapsed, rc == 0)
         if rc != 0:
             raise RuntimeError(f"密钥封装失败，返回码{rc}")
         return {
@@ -125,7 +127,7 @@ class MLKEM:
             "elapsed_ns": elapsed,
         }
 
-    def decaps(self, ciphertext: str, secret_key: str) -> dict:
+    def decaps(self, ciphertext: str, secret_key: str, record: bool = True) -> dict:
         ct_bytes = _from_b64(ciphertext, self.params.ciphertext, "密文")
         sk_bytes = _from_b64(secret_key, self.params.secret_key, "私钥")
         ct = self._array(self.params.ciphertext, ct_bytes)
@@ -134,7 +136,8 @@ class MLKEM:
         start = time.perf_counter_ns()
         rc = self.lib.mlkem_dec(ss, ct, sk)
         elapsed = time.perf_counter_ns() - start
-        _record("decaps", self.level, elapsed, rc == 0)
+        if record:
+            _record("decaps", self.level, elapsed, rc == 0)
         if rc != 0:
             raise RuntimeError(f"密钥解封装失败，返回码{rc}")
         return {

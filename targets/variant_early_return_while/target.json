@@ -1,0 +1,17 @@
+{
+  "id": "variant_early_return_while",
+  "name": "对照实现：while 早退比较版本",
+  "role": "contrast",
+  "description": "比较函数使用 while 循环并在首个差异处提前返回；用于验证平台修复流程不依赖唯一的 for-if 文本形态。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/variant_early_return_while/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/variant_early_return_while/build.sh"
+  ],
+  "selftest": []
+}
