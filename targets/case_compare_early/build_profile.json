@@ -1,0 +1,11 @@
+{
+  "compiler": "gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0",
+  "optimization_flags": "-O3 -fPIC -std=c99 -Wall -Wextra -Wpedantic",
+  "build_adapter": "mlkem-native-scu-v1",
+  "source_family": "mlkem-native controlled mechanism case",
+  "library_sha256": {
+    "512": "e5f41db42bf3478321fec5c7cb4f47a3776714378e565dc15cb4ab949fbc97e8",
+    "768": "f9bc4d7ba73671fa874bb55afc563adb6ed1bbf739922b6a85842cea5914e0cc",
+    "1024": "b6078bacfb4d90f7561495e0d586db6a2ea5def31e9d47092efa5695be1c7d45"
+  }
+}

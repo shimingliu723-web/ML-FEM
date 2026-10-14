@@ -7,6 +7,7 @@ from code_audit import locate_code
 from repair_manager import _memcmp_block,_classify_memcmp
 from vector_validation import validate_vectors
 from stats import paired_block_analysis,student_t_critical
+from function_trace import BASE_STAGES,MECHANISM_STAGES
 
 class SoftwareRegression(unittest.TestCase):
     def test_seven_builtins(self):
@@ -16,8 +17,12 @@ class SoftwareRegression(unittest.TestCase):
         with self.assertRaises(ValueError):get_target('../backend')
     def test_all_compare_patterns(self):
         for target in BUILTINS:
-            expected='early_return' if target.startswith('variant_early_return') else 'fixed_time'
+            expected='early_return' if target=='case_compare_early' else 'fixed_time'
             self.assertEqual(locate_code(target)['compare_style'],expected,target)
+            self.assertTrue(locate_code(target)['mechanism_evidence']['found'],target)
+    def test_function_trace_case_adapters(self):
+        self.assertEqual(len(BASE_STAGES),7)
+        self.assertEqual(set(BUILTINS),set(MECHANISM_STAGES))
     def test_function_extraction_ignores_comment_braces(self):
         source='static MLK_INLINE uint8_t mlk_ct_memcmp(int a) { /* } */ if(a) { return 0xFF; } return 0; }\nint other;'
         a,b,block=_memcmp_block(source)
@@ -40,7 +45,7 @@ class SoftwareRegression(unittest.TestCase):
         self.assertAlmostEqual((hi-lo)/2/r['paired_standard_error_ns'],student_t_critical(4),places=8)
     def test_full_vectors_selected_target(self):
         from software_vectors import validate_official
-        result=validate_official('variant_early_return_xor',['512','768','1024'])
+        result=validate_official('case_compare_early',['512','768','1024'])
         self.assertEqual(result['total'],435)
         self.assertTrue(result['success'])
         self.assertEqual({r['operation'] for r in result['results']},{'keyGeneration','encapsulation','decapsulation','encapsulationKeyCheck','decapsulationKeyCheck'})

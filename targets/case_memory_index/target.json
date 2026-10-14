@@ -1,0 +1,23 @@
+{
+  "id": "case_memory_index",
+  "name": "案例：数据相关内存访问",
+  "role": "contrast",
+  "description": "保持ML-KEM功能语义的受控实验实现，用于验证数据相关内存访问的检测、定位和复测链路。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/case_memory_index/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/case_memory_index/build.sh"
+  ],
+  "selftest": [],
+  "case_type": "controlled",
+  "mechanism": "data_dependent_memory",
+  "sample_strategy": "正常输入重复访问同一缓存线，等长变化输入按固定次数跨缓存线访问；循环次数相同，仅访问地址由比较结果决定",
+  "repair_strategy": "固定范围扫描与掩码选择，或替换为既有常数时间原语",
+  "limitations": "受控案例，不代表独立算法实现或所有真实工程代码。",
+  "flags": "-O3"
+}

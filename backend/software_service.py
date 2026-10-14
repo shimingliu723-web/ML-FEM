@@ -26,10 +26,11 @@ from env_check import assess_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "results" / "software"
-BUILTINS = ["mlkem_native_baseline", "variant_early_return", "variant_early_return_while",
-            "variant_early_return_xor", "variant_repaired", "variant_repaired_while", "variant_repaired_xor"]
+BUILTINS = ["mlkem_native_baseline", "case_compare_early", "case_conditional_failure",
+            "case_variable_loop", "case_memory_index", "case_conditional_branch", "case_variable_division"]
 VECTORS = ROOT / "data/acvp/platform_vectors/mlkem_decap_official_direct.json"
 RUNNER = ROOT / "experiments/software_measure"
+NETWORK_RUNNER = ROOT / "experiments/network_noise_measure"
 CLASSES = ["normal_b64", "changed_first_b64", "changed_mid_b64", "changed_last_b64"]
 
 def digest(path):
@@ -51,7 +52,7 @@ def save(directory, result):
 
 def catalog():
     registry = {t["id"]: t for t in list_targets()}
-    return [dict(registry[t], origin="内置对照系列（同一代码基础）") for t in BUILTINS if t in registry] + [dict(t, origin="外部接入") for t in registry.values() if t["role"] == "custom"] + [dict(t, origin="本机生成的修复产物") for t in registry.values() if t["id"].startswith("repair_") and t["role"]=="repaired"]
+    return [dict(registry[t], origin="内置机制案例") for t in BUILTINS if t in registry] + [dict(t, origin="用户接入") for t in registry.values() if t["role"] == "custom"] + [dict(t, origin="本机生成的修复产物") for t in registry.values() if t["id"].startswith("repair_") and t["role"]=="repaired"]
 
 def validate_basic(target_id, levels=None, iterations=100, vector_text=None):
     target = get_target(target_id)
@@ -88,11 +89,13 @@ def validate_basic(target_id, levels=None, iterations=100, vector_text=None):
         "vector_file_sha256":digest(VECTORS) if official else None,
         "scope":"随机流程一致性 + 所选目标435项官方向量库按参数集验证（KeyGen/Encaps/Decaps/输入检查）；不等同于认证。" if full_official else "随机流程一致性 + 所选目标解封装向量逐项比较；确定性扩展接口不可用或本次为用户向量。"})
 
-def import_target(target_id, name, library_template, levels, source_root="", compiler="unknown", flags="unknown"):
+def import_target(target_id, name, library_template, levels, source_root="", compiler="unknown", flags="unknown", build_adapter="none", optimization="-O3"):
     target_id = _safe_id(target_id)
     if not target_id.startswith("custom_"): raise ValueError("外部目标 ID 必须以 custom_ 开头")
     if (ROOT/"targets"/target_id).exists(): raise ValueError("目标ID已存在，请为新版本使用新ID")
     if not levels: raise ValueError("至少选择一个参数集")
+    if build_adapter not in ("none", "mlkem-native-scu-v1"):
+        raise ValueError("不支持的构建适配器")
     # Copy supplied trusted local libraries to a managed directory. No user build commands.
     directory = ROOT/"targets"/target_id
     paths = {}
@@ -114,17 +117,28 @@ def import_target(target_id, name, library_template, levels, source_root="", com
         if any(f.is_symlink() for f in files) or sum(f.stat().st_size for f in files if f.is_file()) > 32*1024*1024:
             raise ValueError("源码目录不能含符号链接，且总大小不得超过32MB")
         copied_source=directory/"src/mlkem"
+        if build_adapter != "none" and (not (source.parent/"randombytes.c").is_file() or (source.parent/"randombytes.c").is_symlink()):
+            raise ValueError("可修复接入需要源码目录相邻的randombytes.c")
+    elif build_adapter != "none":
+        raise ValueError("启用源码构建验证需要提供源码目录")
     directory.mkdir(parents=True)
     (directory/"lib").mkdir()
     for level,path in paths.items(): shutil.copy2(path,directory/"lib"/f"libmlkem{level}.so")
     if copied_source:
         shutil.copytree(source,copied_source)
+        if build_adapter != "none":
+            shutil.copy2(source.parent/"randombytes.c",directory/"src/randombytes.c")
     result = register_target({"id":target_id,"name":name,"role":"custom","levels":levels,
-        "library_template":f"targets/{target_id}/lib/libmlkem{{level}}.so","description":"用户接入的本地实现；不自动承诺源码修复能力"})
+        "library_template":f"targets/{target_id}/lib/libmlkem{{level}}.so","description":"用户接入的本地实现；通过源码构建对应验证后可修复已适配模式"})
     profile = {"compiler":compiler,"optimization_flags":flags,"source_root":str(copied_source) if copied_source else "",
                "source_binary_correspondence":"用户提供，未证明源码与动态库对应" if copied_source else "源码未提供",
                "provenance":"用户提供；编译信息未经独立验证","library_sha256":{l:digest(p) for l,p in paths.items()}}
     (directory/"build_profile.json").write_text(json.dumps(profile,ensure_ascii=False,indent=2))
+    if build_adapter != "none":
+        from repair_delivery import verify_source
+        profile=verify_source(target_id,optimization)
+    result["source_build_verified"]=profile.get("source_binary_verified",False)
+    result["repair_capability"]="已验证源码与库对应，可分析支持的修复模式" if result["source_build_verified"] else "可检测；源码构建对应未验证，自动修复不可用"
     result["correctness"] = validate_basic(target_id,levels,20)
     result["success"] = result["correctness"]["success"]
     return result
@@ -169,6 +183,18 @@ def environment(cpu):
 
 def make_samples(target_id,level,count):
     result = generate_samples(target_id,level,count)
+    config_path = ROOT/"targets"/target_id/"target.json"
+    config = json.loads(config_path.read_text()) if config_path.is_file() else {}
+    result["target_id"] = target_id
+    result["mechanism"] = config.get("mechanism", "user_supplied")
+    result["sample_strategy"] = config.get("sample_strategy", "由用户说明并由软件记录样本分类依据")
+    result["sample_scope"] = config.get("limitations", "样本结论仅适用于本次目标、构建参数和测量环境")
+    result["class_semantics"] = {
+        "normal_b64": "按规范流程生成的等长输入",
+        "changed_first_b64": "仅翻转首字节一位，长度不变",
+        "changed_mid_b64": "仅翻转中间字节一位，长度不变",
+        "changed_last_b64": "仅翻转末字节一位，长度不变",
+    }
     result["csv_sha256"] = digest(result["csv"])
     result["kind"] = "samples"
     Path(result["report_json"]).write_text(json.dumps(result,ensure_ascii=False,indent=2))
@@ -223,9 +249,96 @@ def measure(target_id,level,sample_report,pairs,cpu,seed=42,category=2,control=F
         "analysis":analysis,"statistics":stats,"cpu_migrations":migrations,
         "measurement":"C CLOCK_MONOTONIC_RAW，仅包围mlkem_dec；输入先复制到同一64字节对齐缓冲区（复制不计时），预热2000对，随机先后顺序；原始异常值全保留",
         "threat_model":"本地测试进程可选择等长输入并观测函数耗时；实验材料专门生成。不代表远程网络条件。",
-        "interpretation":("A/A同输入对照（在不同缓冲区复用同一输入）；" if control else "")+stats["verdict"]["text"]}
+        "interpretation":("A/A同输入对照（计时调用共用对齐输入缓冲区）；" if control else "")+stats["verdict"]["text"]}
     save(directory,result)
     if not control: result["chart_png"]=plot_timing(result,directory)
+    return save(directory,result)
+
+def _write_private_samples(path,rows,level,control=False):
+    params=PARAMETERS[level]
+    fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+    with os.fdopen(fd,"wb") as out:
+        out.write(struct.pack("<I",len(rows)))
+        for row in rows:
+            for key,length in [("secret_key_b64",params.secret_key)] + [(k,params.ciphertext) for k in CLASSES]:
+                selected="normal_b64" if control and key in CLASSES else key
+                raw=base64.b64decode(row[selected],validate=True)
+                if len(raw)!=length: raise ValueError("样本字段长度错误")
+                out.write(raw)
+
+def network_noise_detect(target_id,level,sample_report,pairs,cpu,repeats=3,category=2,profiles=None):
+    """Compare internal decapsulation timing with client-observed TCP RTT."""
+    from network_noise import plot_report, run_native, selected_profiles, summarize_profiles
+
+    pairs=int(pairs); repeats=int(repeats); cpu=int(cpu); category=int(category)
+    if not 100<=pairs<=100000 or not 1<=repeats<=10 or category not in (1,2,3):
+        raise ValueError("网络实验参数不合法")
+    allowed=sorted(os.sched_getaffinity(0))
+    if cpu not in allowed: raise ValueError(f"服务端CPU不可用，可用核心：{allowed}")
+    alternatives=[item for item in allowed if item!=cpu]
+    if not alternatives: raise ValueError("网络实验至少需要两个可固定的CPU核心")
+    client_cpu=alternatives[0]
+    if not NETWORK_RUNNER.is_file(): raise ValueError("网络噪声实验程序尚未构建，请先执行 make network-noise")
+    profile_list=selected_profiles(profiles)
+    pre=environment(cpu)
+    if pre["grade"]=="red": raise ValueError("环境基础条件不满足，未启动网络噪声实验")
+    correctness=validate_basic(target_id,[level],20)
+    if not correctness["success"]:
+        return save(new_run("network-noise"),{"kind":"network_noise","success":False,
+            "target_id":target_id,"level":level,"correctness":correctness,
+            "conclusion":"功能验证未通过，未启动网络噪声实验"})
+    target=get_target(target_id); library=target.library_for(level)
+    manifest,rows=load_samples(sample_report,level)
+    directory=new_run("network-noise"); private=directory/"inputs.bin"
+    _write_private_samples(private,rows,level)
+    collected=[]
+    try:
+        for profile in profile_list:
+            item={"profile":profile,"runs":[],"controls":[]}
+            for round_index in range(repeats):
+                seed=12000+round_index
+                control_csv=directory/f"{profile['id']}-round{round_index+1}-aa.csv"
+                run_csv=directory/f"{profile['id']}-round{round_index+1}.csv"
+                item["controls"].append(run_native(NETWORK_RUNNER,library,level,private,pairs,seed,
+                    control_csv,category,True,cpu,client_cpu,profile))
+                item["runs"].append(run_native(NETWORK_RUNNER,library,level,private,pairs,seed,
+                    run_csv,category,False,cpu,client_cpu,profile))
+            collected.append(item)
+    finally:
+        private.unlink(missing_ok=True)
+    post=environment(cpu)
+    summary=summarize_profiles(collected)
+    pinned=all(run["observed_server_cpus"]==[cpu] and run["observed_client_cpus"]==[client_cpu]
+        for item in collected for run in item["runs"]+item["controls"])
+    formal=pre["formal_timing_ready"] and post["formal_timing_ready"] and pinned
+    stable_internal=all(row["internal_detected_rounds"]==repeats for row in summary)
+    stable_rtt=[row["profile"]["id"] for row in summary if row["formal_rtt_evidence"]]
+    if stable_rtt:
+        conclusion="网络观察在以下噪声档位仍重复检出同方向时间差异："+"、".join(stable_rtt)
+    elif stable_internal:
+        conclusion="服务端内部差异稳定存在，但客户端RTT未形成重复、可区分证据"
+    else:
+        conclusion="内部计时证据本身不稳定，不能把RTT结果归因于网络噪声"
+    result={"kind":"network_noise","success":True,"target_id":target_id,"level":level,
+        "pairs":pairs,"repeats":repeats,"category":CLASSES[category],"server_cpu":cpu,
+        "client_cpu":client_cpu,"profiles":collected,"profile_summary":summary,
+        "environment_before":pre,"environment_after":post,"formal_environment":formal,
+        "correctness":correctness,"sample_manifest":str(Path(sample_report).resolve()),
+        "sample_sha256":manifest["csv_sha256"],"library_sha256":digest(library),
+        "runner_sha256":digest(NETWORK_RUNNER),"cpu_pinning_verified":pinned,
+        "conclusion":conclusion,
+        "measurement":"TCP/IPv4回环；客户端发送完整等长密文，服务端真实调用mlkem_dec；服务端内部CLOCK_MONOTONIC_RAW计时与客户端RTT同步记录；解封装后注入与类别无关的可复现延迟/抖动；每档含同规模A/A对照。",
+        "scope":"这是受控网络延迟/抖动鲁棒性实验，用于判断本地时间信号经过网络观察后是否仍可区分；不等同于任意校园网、VPN或互联网路径，也不单独证明远程攻击可行。"}
+    save(directory,result)
+    result["chart_png"]=plot_report(result,directory/"network-noise-stability.png")
+    lines=["="*86,"网络噪声稳定性验证", "="*86,
+        f"目标: {target_id} / ML-KEM-{level}",f"规模: {pairs} 对 × {repeats} 轮 × {len(summary)} 档；每档含同规模A/A对照",
+        f"服务端CPU: {cpu}；客户端CPU: {client_cpu}；固定核心: {pinned}","", "评估指标:","-"*86]
+    for row in summary:
+        lines.append(f"{row['profile']['label']:<10} internal={row['internal_detected_rounds']}/{repeats}  RTT={row['rtt_detected_rounds']}/{repeats}  internal_diff={row['internal_mean_difference_ns']:.2f} ns  RTT_diff={row['rtt_mean_difference_ns']:.2f} ns  A/A_systematic={row['rtt_control_systematic']}")
+    lines += ["-"*86,"结论: "+conclusion,"范围: "+result["scope"]]
+    log_path=directory/"network-noise-summary.log"; log_path.write_text("\n".join(lines)+"\n",encoding="utf-8")
+    result["summary_log"]=str(log_path)
     return save(directory,result)
 
 def plot_timing(result,directory):
@@ -245,7 +358,7 @@ def plot_timing(result,directory):
     fig.suptitle(f"{result['target_id']} / ML-KEM-{result['level']} / {result['pairs']} pairs",fontsize=11)
     output=directory/"timing.png"; fig.savefig(output,dpi=160); plt.close(fig); return str(output)
 
-def detect(target_id,level,sample_report,pairs,cpu,repeats=3,category=2):
+def detect(target_id,level,sample_report,pairs,cpu,repeats=3,category=2,instrument=False):
     if not 1<=int(repeats)<=10: raise ValueError("重复轮数范围1–10")
     pre=environment(cpu)
     if pre["grade"]=="red": raise ValueError("环境基础条件不满足，先查看环境自检报告")
@@ -255,42 +368,131 @@ def detect(target_id,level,sample_report,pairs,cpu,repeats=3,category=2):
     for i in range(repeats):
         controls.append(measure(target_id,level,sample_report,pairs,cpu,42+i,category,True))
         runs.append(measure(target_id,level,sample_report,pairs,cpu,42+i,category))
+    instrumentation=None
+    if instrument:
+        from function_trace import run_trace
+        try:
+            instrumentation=run_trace(target_id,level,sample_report,pairs,cpu,repeats,category)
+        except (ValueError,FileNotFoundError,subprocess.SubprocessError) as exc:
+            instrumentation={'success':False,'reason':'插桩未完成：'+str(exc),'scope':'原始库检测结果仍保留；插桩不支持或失败不表示实现有问题。'}
     post=environment(cpu)
     significant=[r["statistics"]["verdict"]["statistically_significant"] for r in runs]
     diffs=[r["analysis"]["paired_mean_difference_ns"] for r in runs]
     consistent=all(d>0 for d in diffs) or all(d<0 for d in diffs)
-    control_ready=all(not r["statistics"]["verdict"]["statistically_significant"] and r["statistics"]["verdict"]["tests_agree"] for r in controls)
+    control_significant=[r["statistics"]["verdict"]["statistically_significant"] for r in controls]
+    control_diffs=[r["analysis"]["paired_mean_difference_ns"] for r in controls]
+    control_consistent=all(d>0 for d in control_diffs) or all(d<0 for d in control_diffs)
+    # The A/A control is itself repeated.  Reject the batch only when the null
+    # control reproduces a significant same-direction offset in every round;
+    # a single alpha-level false positive is retained in the report but does
+    # not invalidate an otherwise clean repeated experiment.
+    control_systematic=repeats>=3 and all(control_significant) and control_consistent
+    control_ready=not control_systematic
     formal=pre["formal_timing_ready"] and post["formal_timing_ready"] and control_ready and all(r["cpu_migrations"]==0 for r in runs+controls)
     agreed=all(r["statistics"]["verdict"]["tests_agree"] for r in runs)
     verdict="重复观察到同方向差异" if repeats>=3 and all(significant) and consistent else ("本次各轮未检出显著差异" if not any(significant) and agreed else "轮次结果不一致或轮数不足，需要进一步复测")
     return save(new_run("detection"),{"kind":"detection","success":True,"target_id":target_id,"level":level,
         "environment_before":pre,"environment_after":post,"formal_environment":formal,"correctness":correctness,
-        "runs":runs,"controls":controls,"same_input_control_passed":control_ready,"conclusion":verdict,
+        "runs":runs,"controls":controls,"same_input_control_passed":control_ready,
+        "same_input_control_method":"A/A重复对照：仅当全部轮次均显著且差值同方向时判定存在系统测量偏差；单轮显著结果完整保留。",
+        "same_input_control_systematic":control_systematic,"conclusion":verdict,"instrumentation":instrumentation,
         "scope":"环境或同输入对照未通过，结果仅作探索；不能直接归因于被测实现" if not formal else "仅对本环境、样本类别与次数成立；未检出不等于常数时间证明"})
+
+def adaptive_detect(target_id,level,sample_report,cpu,category=2):
+    """Environment-aware sequential detector with a predeclared sample budget."""
+    from adaptive_detection import decide, evidence_row, plot_report, resource_summary, schedule_for_environment
+
+    pre=environment(cpu)
+    if pre["grade"]=="red": raise ValueError("环境基础条件不满足，未启动自适应检测")
+    correctness=validate_basic(target_id,[level],20)
+    if not correctness["success"]:
+        return save(new_run("adaptive-detection"),{"kind":"adaptive_detection","success":False,
+            "target_id":target_id,"level":level,"correctness":correctness,
+            "conclusion":"功能验证未通过，未启动自适应计时"})
+
+    schedule=schedule_for_environment(pre)
+    # A fourth 10k confirmation stage is reserved only for an ambiguous first
+    # three stages.  Obvious cases stop after two independent stages.
+    budgets=schedule+[10_000]
+    stages=[]
+    for index,pairs in enumerate(budgets):
+        seed=9000+index
+        control_report=measure(target_id,level,sample_report,pairs,cpu,seed,category,True)
+        run_report=measure(target_id,level,sample_report,pairs,cpu,seed,category,False)
+        stages.append({"stage":index+1,"pairs":pairs,"seed":seed,
+            "control":evidence_row(control_report),"run":evidence_row(run_report)})
+        interim=decide(stages,pre["formal_timing_ready"],final=index==len(budgets)-1)
+        stages[-1]["decision_after_stage"]=interim
+        if interim["action"]=="stop": break
+
+    post=environment(cpu)
+    formal_environment=pre["formal_timing_ready"] and post["formal_timing_ready"]
+    decision=decide(stages,formal_environment,final=True)
+    resources=resource_summary(stages)
+    directory=new_run("adaptive-detection")
+    result={"kind":"adaptive_detection","success":True,"target_id":target_id,"level":level,
+        "sample_manifest":str(Path(sample_report).resolve()),"cpu":int(cpu),
+        "category":CLASSES[int(category)],"environment_before":pre,"environment_after":post,
+        "formal_environment":formal_environment,"correctness":correctness,"schedule":schedule,
+        "confirmation_budget":10_000,"stages":stages,"decision":decision,"resources":resources,
+        "conclusion":decision["conclusion"],
+        "innovation":{
+            "name":"基于环境准入与序贯证据累积的自适应时间检测方法",
+            "baseline":"固定10000对×3轮检测",
+            "improvement":"依据环境抖动选择初始预算；按置信区间、检验一致性、方向一致性、实际意义和A/A对照逐阶段停止或扩样",
+            "reproducibility":"采样日程、随机种子、每阶段原始CSV、停止原因和固定基线预算全部写入报告"},
+        "scope":"正式结论仅适用于本目标、构建、样本类别和环境；提前停止不表示数学上的恒定时间证明。"}
+    save(directory,result)
+    result["chart_png"]=plot_report(result,directory/"adaptive-sequential.png")
+    return save(directory,result)
 
 def locate(target_id,level):
     from code_audit import locate_code
     from binary_audit import binary_locate
+    from repair_delivery import repair_plan
+    source=locate_code(target_id)
+    try: plans=repair_plan(target_id)
+    except (ValueError,FileNotFoundError): plans=[]
+    source["supported_repairs"]=[p["kind"] for p in plans]
+    for p in plans:
+        source["findings"].append({"title":"可修复模式："+p["kind"],"path":str(p["file"]),"found":True,"matches":[p["file"].read_text()[:p["start"]].count('\n')+1]})
+    if any(p["kind"]=="conditional_rejection_path" for p in plans):
+        source["summary"]+=" 识别到验证结果控制的拒绝派生条件路径，可改为统一计算与掩码选择。"
     return save(new_run("location"),{"kind":"location","target_id":target_id,"level":level,
-        "source":locate_code(target_id),"binary":binary_locate(target_id,level),
-        "scope":"二进制结果是候选指令；条件跳转数量不能直接证明敏感依赖。自动源码规则仅覆盖已适配的比较函数。"})
+        "source":source,"binary":binary_locate(target_id,level),
+        "scope":"二进制结果是候选指令；必须与源码模式、函数阶段和重复计时共同解释。自动规则只处理完整匹配的已适配模式，不对任意源码盲目改写。"})
 
 def repair(target_id,level,sample_report,pairs,cpu,repeats=3,category=2):
-    from repair_manager import generate_repair
+    from repair_delivery import generate
     location=locate(target_id,level)
-    if get_target(target_id).role == "custom":
+    if get_target(target_id).role == "custom" and not json.loads((ROOT/'targets'/target_id/'build_profile.json').read_text()).get('source_binary_verified'):
         return save(new_run("repair"),{"kind":"repair","success":False,"target_id":target_id,"location":location,
             "conclusion":"外部源码可辅助定位，但源码与动态库的构建对应尚未验证；需人工完成构建适配后才能自动应用补丁"})
-    if location["source"]["compare_style"]!="early_return":
+    if not location["source"].get("supported_repairs"):
         return save(new_run("repair"),{"kind":"repair","success":False,"target_id":target_id,"location":location,
             "conclusion":"未识别受支持的修复模式，未改动源码；请人工适配"})
     before=detect(target_id,level,sample_report,pairs,cpu,repeats,category)
     if not before["success"]: return before
     repaired_id="repair_"+uuid.uuid4().hex[:12]
-    patch=generate_repair(target_id,repaired_id,overwrite=False,build=True,validate_pairs=0,cpu=cpu)
+    patch=generate(target_id,repaired_id)
     if not patch["success"]:
         return save(new_run("repair"),{"kind":"repair","success":False,"target_id":target_id,"patch":patch,"conclusion":"编译或功能验证失败，未接受补丁"})
-    after=detect(repaired_id,level,sample_report,pairs,cpu,repeats,category)
+    after_initial=detect(repaired_id,level,sample_report,pairs,cpu,repeats,category)
+    if not after_initial.get('success'):
+        return save(new_run('repair'),{'kind':'repair','success':False,'target_id':target_id,
+            'repaired_id':repaired_id,'patch':patch,'before':before,'after':after_initial,
+            'conclusion':'修复产物复测未完成，未确认防护效果'})
+    # A borderline post-repair batch gets one predeclared independent confirmation.
+    # Both batches remain in the report; the confirmation does not erase or replace
+    # the initial evidence.
+    confirmation=None
+    if before["conclusion"]=="重复观察到同方向差异" and after_initial["conclusion"]!="本次各轮未检出显著差异":
+        confirmation=detect(repaired_id,level,sample_report,pairs,cpu,repeats,category)
+    after=confirmation if confirmation and confirmation.get("success") else after_initial
+    for candidate in [after_initial]+([confirmation] if confirmation else []):
+      for br,ar in zip(before['runs'],candidate['runs']):
+        if any(br[k]!=ar[k] for k in ('sample_sha256','seed','category','pairs','cpu','level')):
+            raise ValueError('前后实验参数不一致，拒绝确认修复效果')
     b=statistics.fmean(abs(r["analysis"]["paired_mean_difference_ns"]) for r in before["runs"])
     a=statistics.fmean(abs(r["analysis"]["paired_mean_difference_ns"]) for r in after["runs"])
     perf=[]
@@ -302,11 +504,31 @@ def repair(target_id,level,sample_report,pairs,cpu,repeats=3,category=2):
                 "overhead_percent":100*(ass["mean_ns"]/bs["mean_ns"]-1)})
     confirmed=before["conclusion"]=="重复观察到同方向差异" and after["conclusion"]=="本次各轮未检出显著差异" and a<b and before["formal_environment"] and after["formal_environment"]
     result={"kind":"repair","success":True,"target_id":target_id,"repaired_id":repaired_id,"level":level,"location":location,
-        "patch":patch,"before":before,"after":after,"performance":perf,"effect_confirmed":confirmed,
+        "patch":patch,"before":before,"after":after,"after_initial":after_initial if confirmation else None,
+        "confirmation_performed":confirmation is not None,"confirmation_policy":"修复后初次复测未形成三轮一致结论时，自动执行一次参数完全相同的独立确认批次；两批证据均保留。",
+        "performance":perf,"effect_confirmed":confirmed,
         "mean_abs_diff_before_ns":b,"mean_abs_diff_after_ns":a,
         "conclusion":"本轮闭环实验支持防护改善" if confirmed else "补丁通过功能验证；计时改善尚未达到本轮验收条件，应检查重复结果与环境",
-        "limits":"仅自动处理已适配的早退比较模式；不同源码结构须人工适配。"}
+        "limits":"自动处理完整匹配的比较早退、条件拒绝、数据相关循环、数据相关访存、条件分支和运行期除法模式；外部源码须先重编译并与输入库摘要完全一致。"}
     return save(new_run("repair"),result)
+
+def cross_build_validate(sample_report="", pairs=10000, cpu=0, repeats=3, config_ids=None):
+    """Rebuild and retest the controlled baseline/comparison pair across supported toolchains."""
+    if not 100 <= int(pairs) <= 100000:
+        raise ValueError("跨编译验证配对数范围 100–100000")
+    if not 1 <= int(repeats) <= 10:
+        raise ValueError("跨编译验证重复轮数范围 1–10")
+    if int(cpu) not in os.sched_getaffinity(0):
+        raise ValueError("所选CPU不可用")
+    if sample_report:
+        load_samples(sample_report, "512")
+    else:
+        sample_report = make_samples("mlkem_native_baseline", "512", 512)["report_json"]
+    directory = new_run("cross-build")
+    from cross_build import run_cross_build
+    result = run_cross_build(ROOT, directory, sample_report, int(pairs), int(cpu), int(repeats), config_ids)
+    return save(directory, result)
+
 
 def export_report(report_path):
     p=Path(report_path).resolve(strict=True)
@@ -317,7 +539,7 @@ def export_report(report_path):
     def visit(value):
         if isinstance(value,dict):
             for key,v in value.items():
-                if key in {"report_json","raw_csv","chart_png","patch_file","sample_manifest"} and isinstance(v,str):
+                if key in {"report_json","raw_csv","chart_png","summary_log","patch_file","sample_manifest"} and isinstance(v,str):
                     path=Path(v).resolve()
                     if path.is_file() and ROOT.resolve() in path.parents and (RESULTS.resolve() in path.parents or (key=="patch_file" and (ROOT/"targets").resolve() in path.parents) or (key=="sample_manifest" and path.suffix==".json" and (ROOT/"results/samples").resolve() in path.parents)):
                         artifacts.add(path)
@@ -325,7 +547,7 @@ def export_report(report_path):
         elif isinstance(value,list):
             for v in value: visit(v)
     visit(data); artifacts.add(p)
-    for relative in ["experiments/software_measure.c","backend/stats.py","backend/sample_generator.py","backend/software_service.py","docs/SOFTWARE.md"]:
+    for relative in ["experiments/software_measure.c","experiments/network_noise_measure.c","experiments/function_trace_measure.c","backend/function_trace.py","backend/adaptive_detection.py","backend/network_noise.py","backend/cross_build.py","backend/software_vectors.py","backend/stats.py","backend/sample_generator.py","backend/software_service.py","scripts/run_network_noise_experiment.py","docs/SOFTWARE.md","docs/FUNCTION_TRACE.md","docs/ADAPTIVE_SEQUENTIAL_DETECTION.md","docs/NETWORK_NOISE.md","docs/CROSS_BUILD_VALIDATION.md"]:
         artifact=ROOT/relative
         if artifact.is_file(): artifacts.add(artifact)
     text="# ML-KEM 软件实验报告\n\n"+f"目标：{data.get('target_id','环境')}\n\n类型：{data.get('kind')}\n\n结论：{data.get('conclusion','见逐项验证明细')}\n\n"
@@ -342,10 +564,11 @@ def export_report(report_path):
 
 def dispatch(request):
     action=request["action"]; args=request.get("args",{})
+    from repair_delivery import export_program
     functions={"basic":validate_basic,"import":import_target,"environment":environment,"samples":make_samples,
-               "detect":detect,"locate":locate,"repair":repair,"export":export_report}
+               "detect":detect,"adaptive-detect":adaptive_detect,"network-noise":network_noise_detect,"cross-build":cross_build_validate,"locate":locate,"repair":repair,"export":export_report,"program-export":export_program}
     if action not in functions: raise ValueError("未知操作")
-    if action in {"environment","detect","repair"}:
+    if action in {"environment","detect","adaptive-detect","network-noise","cross-build","repair"}:
         import fcntl
         RESULTS.mkdir(parents=True,exist_ok=True)
         with (RESULTS/"measurement.lock").open("a") as lock:

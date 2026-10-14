@@ -46,6 +46,7 @@ def list_targets() -> list[dict]:
     items = []
     for config in sorted(TARGETS_DIR.glob("*/target.json")):
         target = _load_target(config)
+        raw = json.loads(config.read_text(encoding="utf-8"))
         libs = {level: target.library_for(level).is_file() for level in target.levels}
         items.append({
             "id": target.id,
@@ -55,6 +56,11 @@ def list_targets() -> list[dict]:
             "levels": target.levels,
             "libraries": libs,
             "config": str(config),
+            "case_type": str(raw.get("case_type", "external" if target.role == "custom" else "unspecified")),
+            "mechanism": str(raw.get("mechanism", "user_supplied" if target.role == "custom" else "unspecified")),
+            "sample_strategy": str(raw.get("sample_strategy", "由用户说明并由软件记录样本清单")),
+            "repair_strategy": str(raw.get("repair_strategy", "需先定位并确认适配规则")),
+            "limitations": str(raw.get("limitations", "结论仅对所选实现、环境和样本成立。")),
         })
     return items
 

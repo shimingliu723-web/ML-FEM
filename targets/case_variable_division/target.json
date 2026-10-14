@@ -1,0 +1,23 @@
+{
+  "id": "case_variable_division",
+  "name": "案例：输入相关运行期除法路径",
+  "role": "contrast",
+  "description": "保持ML-KEM功能语义的受控实验实现，用于验证输入相关运行期除法路径的检测、定位和复测链路。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/case_variable_division/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/case_variable_division/build.sh"
+  ],
+  "selftest": [],
+  "case_type": "controlled",
+  "mechanism": "variable_time_division",
+  "sample_strategy": "正常输入与等长变化输入；验证结果控制一个包含1024次运行期整数除法的有界工作段，并结合反汇编确认div/idiv",
+  "repair_strategy": "移除验证结果控制的除法工作段，恢复已验证的固定流程比较原语",
+  "limitations": "受控案例，不代表独立算法实现或所有真实工程代码。",
+  "flags": "-Os"
+}

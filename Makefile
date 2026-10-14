@@ -6,9 +6,9 @@ COMMON_FLAGS := -O3 -fPIC -std=c99 -Wall -Wextra -Wpedantic \
 	-I$(MLKEM_DIR) -DMLK_CONFIG_NAMESPACE_PREFIX=mlkem
 SOURCE := $(MLKEM_DIR)/mlkem_native.c $(PROJECT_ROOT)/core/randombytes.c
 
-.PHONY: all clean formal-timing input-classification
+.PHONY: all clean formal-timing input-classification network-noise
 
-all: $(LIB_DIR)/libmlkem512.so $(LIB_DIR)/libmlkem768.so $(LIB_DIR)/libmlkem1024.so formal-timing input-classification
+all: $(LIB_DIR)/libmlkem512.so $(LIB_DIR)/libmlkem768.so $(LIB_DIR)/libmlkem1024.so formal-timing input-classification network-noise
 
 $(LIB_DIR):
 	mkdir -p $@
@@ -32,5 +32,10 @@ input-classification: experiments/input_classification
 experiments/input_classification: experiments/input_classification.c
 	$(CC) -O3 -std=c99 -Wall -Wextra -Wpedantic $< -ldl -o $@
 
+network-noise: experiments/network_noise_measure
+
+experiments/network_noise_measure: experiments/network_noise_measure.c
+	$(CC) -O3 -std=c99 -Wall -Wextra -Wpedantic $< -ldl -o $@
+
 clean:
-	rm -f $(LIB_DIR)/libmlkem512.so $(LIB_DIR)/libmlkem768.so $(LIB_DIR)/libmlkem1024.so experiments/formal_timing experiments/input_classification
+	rm -f $(LIB_DIR)/libmlkem512.so $(LIB_DIR)/libmlkem768.so $(LIB_DIR)/libmlkem1024.so experiments/formal_timing experiments/input_classification experiments/network_noise_measure

@@ -40,7 +40,7 @@ MLKEM_HOST=0.0.0.0 MLKEM_PORT=8000 nohup ./scripts/start.sh > results/server.log
 如果外网端口打不开，推荐通过 SSH 隧道访问：
 
 ```bash
-ssh -N -L 8010:127.0.0.1:8000 -p 53122 lsm@222.20.126.61
+ssh -N -L 8010:127.0.0.1:8000 -p <ssh-port> <user>@<server-host>
 ```
 
 然后在本机浏览器访问：

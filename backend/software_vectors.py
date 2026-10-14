@@ -6,10 +6,10 @@ from target_manager import get_target
 ROOT=Path(__file__).resolve().parents[1]
 DATASETS=['ML-KEM-keyGen-FIPS203','ML-KEM-encapDecap-FIPS203','ML-KEM-encapDecap-FIPS203-tr1']
 
-def validate_official(target_id,levels):
+def validate_official(target_id,levels,library_overrides=None):
     target=get_target(target_id); engines={}; sources=[]; results=[]
     for level in levels:
-        e=MLKEM(level,target.library_for(level)); engines[level]=e
+        e=MLKEM(level,(library_overrides or {}).get(level,target.library_for(level))); engines[level]=e
         for name,nargs in [('mlkem_keypair_derand',3),('mlkem_enc_derand',4),('mlkem_check_pk',1),('mlkem_check_sk',1)]:
             if not hasattr(e.lib,name):return None # external ABI may offer only randomized operations
             f=getattr(e.lib,name);f.argtypes=[ctypes.POINTER(ctypes.c_uint8)]*nargs;f.restype=ctypes.c_int

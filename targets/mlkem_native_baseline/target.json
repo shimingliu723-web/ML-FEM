@@ -1,6 +1,6 @@
 {
   "id": "mlkem_native_baseline",
-  "name": "mlkem-native 规范实现",
+  "name": "案例：规范基线",
   "role": "baseline",
   "description": "平台默认 ML-KEM 实现，用于基本功能验证和正式计时基线。",
   "levels": [
@@ -16,5 +16,10 @@
   "selftest": [
     "python3",
     "tests/test_basic.py"
-  ]
+  ],
+  "case_type": "baseline",
+  "mechanism": "fixed_flow_baseline",
+  "sample_strategy": "同一批等长输入与A/A对照，用于建立测量基线",
+  "repair_strategy": "无需修改；作为其他案例的功能与计时参照",
+  "limitations": "未检出差异不等于绝对常数时间证明。"
 }

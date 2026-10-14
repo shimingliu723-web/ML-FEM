@@ -1,0 +1,23 @@
+{
+  "id": "case_conditional_failure",
+  "name": "案例：条件失败处理路径",
+  "role": "contrast",
+  "description": "保持ML-KEM功能语义的受控实验实现，用于验证条件失败处理路径的检测、定位和复测链路。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/case_conditional_failure/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/case_conditional_failure/build.sh"
+  ],
+  "selftest": [],
+  "case_type": "controlled",
+  "mechanism": "conditional_failure_path",
+  "sample_strategy": "正常输入与等长变化输入；检验成功路径和失败路径是否执行不同工作量",
+  "repair_strategy": "统一计算候选结果与拒绝结果，再用掩码选择",
+  "limitations": "受控案例，不代表独立算法实现或所有真实工程代码。",
+  "flags": "-O3"
+}

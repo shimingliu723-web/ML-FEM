@@ -1,0 +1,23 @@
+{
+  "id": "case_variable_loop",
+  "name": "案例：数据相关循环",
+  "role": "contrast",
+  "description": "保持ML-KEM功能语义的受控实验实现，用于验证数据相关循环的检测、定位和复测链路。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/case_variable_loop/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/case_variable_loop/build.sh"
+  ],
+  "selftest": [],
+  "case_type": "controlled",
+  "mechanism": "data_dependent_loop",
+  "sample_strategy": "正常输入与等长变化输入；检验循环次数是否受验证结果影响",
+  "repair_strategy": "固定循环上限并以掩码控制结果更新",
+  "limitations": "受控案例，不代表独立算法实现或所有真实工程代码。",
+  "flags": "-O3"
+}

@@ -1,0 +1,38 @@
+{
+  "success": true,
+  "before_id": "variant_early_return",
+  "repaired_id": "variant_repaired",
+  "repair_type": "early_return_compare_to_constant_time_accumulate",
+  "changed_file": "/disk4/lsm/A1-13-MLKEM-Platform/targets/variant_repaired/src/mlkem/src/verify.h",
+  "source_pattern": "early-return compare",
+  "replacement": "full scan plus accumulated difference mask",
+  "patch_sha256": "419d962577db54075db34e724b9512cb8131d53d3a4a3de050bd5dad7979d5cc",
+  "patch_file": "/disk4/lsm/A1-13-MLKEM-Platform/targets/variant_repaired/repair.patch",
+  "diff_preview": [
+    "--- variant_early_return/verify.h",
+    "+++ variant_repaired/verify.h",
+    "@@ -344,15 +344,28 @@",
+    "-      return 0xFF;",
+    "+    r |= a[i] ^ b[i];"
+  ],
+  "build": {
+    "success": true,
+    "target": "variant_repaired",
+    "command_name": "build",
+    "command": [
+      "bash",
+      "targets/variant_repaired/build.sh"
+    ],
+    "returncode": 0,
+    "output_tail": []
+  },
+  "validation": {
+    "ran": true,
+    "target": "variant_repaired",
+    "report_json": "/disk4/lsm/A1-13-MLKEM-Platform/results/formal_timing/20261008-102834-325834.json",
+    "statistically_distinguishable": false,
+    "paired_mean_difference_ns": -32.34
+  },
+  "logging_policy": "仅记录目标ID、文件路径、补丁摘要、统计结果和报告路径；不记录私钥、中间状态、完整样本或验证内部值。",
+  "created_at": "2026-10-08T10:28:34+0800"
+}

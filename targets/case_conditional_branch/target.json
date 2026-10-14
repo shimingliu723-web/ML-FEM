@@ -1,0 +1,23 @@
+{
+  "id": "case_conditional_branch",
+  "name": "案例：数据相关条件分支",
+  "role": "contrast",
+  "description": "保持ML-KEM功能语义的受控实验实现，用于验证数据相关条件分支的检测、定位和复测链路。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/case_conditional_branch/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/case_conditional_branch/build.sh"
+  ],
+  "selftest": [],
+  "case_type": "controlled",
+  "mechanism": "data_dependent_branch",
+  "sample_strategy": "正常输入与等长变化输入；验证结果选择轻路径或固定工作量路径，用于检验控制流差异",
+  "repair_strategy": "消除条件跳转和分支专属工作，使用掩码选择并统一路径",
+  "limitations": "受控案例，不代表独立算法实现或所有真实工程代码。",
+  "flags": "-O3"
+}

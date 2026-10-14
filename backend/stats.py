@@ -592,7 +592,7 @@ def compare_two_classes(
     elif primary_significant:
         verdict_text = (
             f"主检验（{primary_label}）在 α={alpha} 下判为存在差异，"
-            f"均值差 {mean_difference:.2f} ns（相对 {relative:.2f}%）。"
+            f"均值差 {mean_difference:.2f} ns（相对 {format(relative, '.2f') + '%' if relative is not None else '不可定义：基准均值为零'}）。"
             + (
                 "已达到设定的实际意义阈值。"
                 if practically_relevant

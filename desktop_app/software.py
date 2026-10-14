@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, sys, time
+import json, os, sys, time, shutil
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'backend'))
@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt,QProcess,QUrl
 from PySide6.QtGui import QFont,QFontDatabase,QPixmap,QDesktopServices,QPalette,QColor
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QHBoxLayout,QVBoxLayout,QGridLayout,
  QLabel,QPushButton,QComboBox,QSpinBox,QLineEdit,QPlainTextEdit,QTableWidget,QTableWidgetItem,
- QHeaderView,QStackedWidget,QListWidget,QFileDialog,QTabWidget,QProgressBar,QFrame)
+ QHeaderView,QStackedWidget,QListWidget,QFileDialog,QTabWidget,QProgressBar,QFrame,QCheckBox)
 
 NAMES=['工作台','实现管理','环境自检','基本功能与向量','输入样本','时间检测','代码定位','修复与对照','实验报告']
 def label(text,name=''):
@@ -71,20 +71,24 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.details[i],'完整报告 / 证据'); self.layouts[i].addWidget(tabs,1); return tabs
     def build_pages(self):
         l=self.layouts[0]; l.addWidget(label('从正确性验证到修复复测，一套软件完成','hero'))
-        l.addWidget(label('七个内置目标 + 外部接入。各模块通过目标指纹、样本摘要和报告编号串联。','muted')); grid=QGridLayout()
+        l.addWidget(label('七个机制案例 + 用户实现接入。各模块通过目标指纹、样本摘要和报告编号串联。','muted')); grid=QGridLayout()
         for i,(title,desc,page) in enumerate([
           ('01  基础 ML-KEM 功能','选择实现 → 批量自测 → 导入公开 / 自有向量\n逐项比较期望结果，保存验证明细',3),
           ('02  时间检测与防护','环境自检 → 多轮计时 → 源码 / 二进制定位\n支持模式生成补丁 → 正确性回归 → 同样本复测',2),
           ('03  输入样本工作台','正常输入 + 首部 / 中部 / 尾部变化\n保持长度一致，在实现之间复用数据集',4)]):
             f=QFrame(); f.setObjectName('card'); box=QVBoxLayout(f); box.addWidget(label(title,'cardTitle')); box.addWidget(label(desc)); box.addWidget(button('进入模块',lambda p=page:self.nav.setCurrentRow(p),True)); grid.addWidget(f,0,i)
         l.addLayout(grid); overview=table(['软件能力','验收依据','适用范围'])
-        fill(overview,[('基本功能','所选目标自测 + 公开向量逐项比较','512 / 768 / 1024；批量导入'),('环境测量','固定CPU的C探针、时钟开销、抖动和前后检查','Linux / WSL；计时结论受环境限制'),('时间检测','每轮CSV + 配对统计 + 95%区间','等长输入，默认10000对 × 3轮'),('定位与防护','源码规则 + 反汇编证据 + 补丁 + 正确性回归','自动修复覆盖已适配比较函数'),('可复现报告','目标/样本/计时器摘要 + 参数 + 原始数据包','结论来自实测；普通报告不含秘密材料')]); l.addWidget(overview,1)
-        l.addWidget(label('七个内置目标属于同一代码基础的对照系列。未检出时间差异不能证明实现绝对常数时间。','muted'))
+        fill(overview,[('基本功能','所选目标自测 + 公开向量逐项比较','512 / 768 / 1024；批量导入'),('环境测量','固定CPU的C探针、时钟开销、抖动和前后检查','Linux / WSL；计时结论受环境限制'),('时间检测','固定采样 / 自适应序贯 + 配对统计','等长输入；正式结论要求多轮与A/A对照'),('高级稳定性','网络噪声 + GCC/Clang与-O2/-O3/-Os','内部计时和RTT分级；跨构建复验'),('定位与防护','源码规则 + 反汇编证据 + 补丁 + 正确性回归','六类已适配行为；完整模式匹配后才自动修改'),('可复现报告','目标/样本/计时器摘要 + 参数 + 原始数据包','结论来自实测；普通报告不含秘密材料')]); l.addWidget(overview,1)
+        l.addWidget(label('七个内置项是机制覆盖案例，不冒充七种独立算法实现；受控案例均须通过功能与公开向量验证。未检出差异不能证明绝对常数时间。','muted'))
         self.layouts[1].addWidget(label('接入已编译的可信本地 .so 库；需导出 mlkem_keypair、mlkem_enc、mlkem_dec。接入后检查符号并验证功能。适配说明见 docs/SOFTWARE.md。'))
         self.regId=QLineEdit('custom_my_mlkem'); self.regName=QLineEdit('我的 ML-KEM 实现'); self.regLib=QLineEdit(); self.regLib.setPlaceholderText('/path/libmlkem{level}.so 或单个 .so')
         self.regLevels=QLineEdit('512,768,1024'); self.regCompiler=QLineEdit('unknown'); self.regFlags=QLineEdit('unknown'); self.regSource=QLineEdit(); self.regSource.setPlaceholderText('可选，包含src/verify.h和src/kem.c的源码目录'); g=QGridLayout()
         for i,(name,w) in enumerate([('目标ID',self.regId),('名称',self.regName),('参数集',self.regLevels),('库路径模板',self.regLib),('编译器（用户提供）',self.regCompiler),('编译选项（用户提供）',self.regFlags)]):g.addWidget(label(name),i//2,i%2*2); g.addWidget(w,i//2,i%2*2+1)
-        self.layouts[1].addLayout(g); self.row(1,'源码定位（可选）',self.regSource,button('选择源码',self.pick_source)); self.row(1,button('选择库',self.pick_library),button('接入并验证',self.import_target,True),button('刷新',self.refresh_targets)); self.result_area(1,['目标ID','来源','参数集','库就绪'])
+        self.layouts[1].addLayout(g); self.row(1,'源码定位（可选）',self.regSource,button('选择源码',self.pick_source)); self.row(1,button('选择库',self.pick_library),button('接入并验证',self.import_target,True),button('刷新',self.refresh_targets)); self.result_area(1,['目标ID','来源','机制','参数集','库就绪'])
+        self.buildAdapter=QComboBox(); self.buildAdapter.addItems(['仅检测 / 源码辅助定位','源码构建验证：mlkem-native SCU'])
+        self.optimization=QComboBox(); self.optimization.addItems(['-O3','-O2'])
+        adapter_row=QHBoxLayout();adapter_row.addWidget(label('修复接入'));adapter_row.addWidget(self.buildAdapter);adapter_row.addWidget(self.optimization);adapter_row.addStretch()
+        self.layouts[1].insertLayout(3,adapter_row)
         self.row(2,button('测量当前环境',lambda:self.launch('environment',{'cpu':self.cpu()},2),True),'固定CPU C探针1000次 · 时钟开销 · 运行抖动 · 系统信息'); self.result_area(2,['检查项目','结果','说明'])
         self.iterations=spin(1,10000,100); self.basicRange=QComboBox(); self.basicRange.addItems(['当前参数集','所选实现的全部参数集'])
         self.row(3,'自测次数',self.iterations,self.basicRange,button('流程自测 + 公开向量',self.run_basic,True))
@@ -94,32 +98,49 @@ class MainWindow(QMainWindow):
         self.layouts[4].addWidget(label('样本清单用于检测与修复复测。实验材料受限权限保存在本机；报告只记录规则、数量和摘要。')); self.result_area(4,['类别','修改规则','数量','输入长度（字节）'])
         self.samplePath=QLineEdit(); self.samplePath.setPlaceholderText('先生成样本，或选择已有 samples.json'); self.row(5,'样本清单',self.samplePath,button('选择清单',self.pick_samples))
         self.pairs=spin(100,100000,10000); self.repeats=spin(1,10,3); self.category=QComboBox(); self.category.addItems(['首部单比特变化','中部单比特变化','尾部单比特变化']); self.category.setCurrentIndex(1)
-        self.row(5,'每轮配对数',self.pairs,'轮数',self.repeats,self.category,button('环境检查并检测',lambda:self.launch('detect',self.timing_args(),5),True),button('进入定位',lambda:self.nav.setCurrentRow(6)))
+        self.instrumentBox=QCheckBox('函数级插桩辅助分析（独立构建，并测量开销）'); self.row(5,self.instrumentBox)
+        self.row(5,'每轮配对数',self.pairs,'轮数',self.repeats,self.category,button('环境检查并检测',lambda:self.launch('detect',dict(self.timing_args(),instrument=self.instrumentBox.isChecked()),5),True),button('进入定位',lambda:self.nav.setCurrentRow(6)))
+        self.layouts[5].addWidget(label('创新模块：根据环境抖动自动选择初始样本量，按置信区间、检验一致性、方向一致性和A/A对照逐阶段停止或扩样。固定10000对×3轮方法保留为对照基线。','muted'))
+        self.row(5,button('运行自适应序贯检测',lambda:self.launch('adaptive-detect',self.adaptive_args(),5),True),'自动记录采样轨迹、停止原因、证据等级和样本节省率')
+        self.layouts[5].addWidget(label('网络鲁棒性：同一批等长输入同时记录服务端内部解封装时间与客户端TCP往返时间；在四档受控延迟/抖动下复测，并为每档运行A/A同输入对照。','muted'))
+        self.row(5,button('运行网络噪声稳定性验证',lambda:self.launch('network-noise',self.network_args(),5),True),'无附加噪声 / 低 / 中 / 高噪声；正式实验建议10000对 × 3轮')
+        self.layouts[5].addWidget(label('跨构建验证：对规范基线与比较早退案例分别使用可用的 GCC、Clang 及 -O2、-O3、-Os 重新编译；源码、样本、CPU和统计流程保持一致。','muted'))
+        self.row(5,button('运行跨编译器 / 优化级别验证',lambda:self.launch('cross-build',self.cross_build_args(),5),True),'自动发现工具链；缺失配置会明确标记，不伪造完整矩阵')
         tabs=self.result_area(5,['轮次','正常均值ns','变化均值ns','配对差ns','95%区间ns','主检验','环境']); self.plot=QLabel(); self.plot.setAlignment(Qt.AlignCenter); tabs.addTab(self.plot,'分布与置信区间')
+        self.traceTable=table(['轮次','对照','函数阶段','正常ns','变化ns','配对差ns','95%区间ns','显著性']); tabs.addTab(self.traceTable,'插桩辅助分析')
+        self.overheadTable=table(['轮次','对照','类别','原始均值ns','插桩均值ns','净开销%','原始p50 / p95','插桩p50 / p95','8组空探针成本ns']); tabs.addTab(self.overheadTable,'插桩开销')
+        self.adaptiveTable=table(['阶段','配对数','均值差ns','95%区间ns','统计显著','检验一致','阶段决策']); tabs.addTab(self.adaptiveTable,'创新检测轨迹')
+        self.adaptivePlot=QLabel(); self.adaptivePlot.setAlignment(Qt.AlignCenter); tabs.addTab(self.adaptivePlot,'自适应证据图')
+        self.networkTable=table(['噪声档位','内部检出轮次','RTT检出轮次','内部平均差ns','RTT平均差ns','A/A系统偏移','RTT正式证据']); tabs.addTab(self.networkTable,'网络稳定性')
+        self.networkPlot=QLabel(); self.networkPlot.setAlignment(Qt.AlignCenter); tabs.addTab(self.networkPlot,'网络对比图')
+        self.crossBuildTable=table(['编译配置','目标','功能','平均差ns','轮次差值ns','正式证据','结论']); tabs.addTab(self.crossBuildTable,'跨编译验证')
+        self.crossBuildPlot=QLabel(); self.crossBuildPlot.setAlignment(Qt.AlignCenter); tabs.addTab(self.crossBuildPlot,'跨编译对比图')
         self.row(6,button('定位所选实现',lambda:self.launch('locate',{'target_id':self.target(),'level':self.level()},6),True),button('进入修复',lambda:self.nav.setCurrentRow(7)))
         self.layouts[6].addWidget(label('源码模式对应重加密验证环节；反汇编列出候选控制流证据。条件跳转数量不能直接证明敏感依赖。')); self.result_area(6,['证据类型','位置 / 指令','说明'])
-        self.layouts[7].addWidget(label('沿用时间检测页的样本、类别、配对数、轮数和CPU。原目标保留；补丁生成独立目标，全部支持参数集通过自测和公开向量后，再复测同一批输入。'))
-        self.row(7,button('执行定位 → 修复 → 功能回归 → 对照',lambda:self.launch('repair',self.timing_args(),7),True)); self.result_area(7,['轮次 / 类别','修复前均值ns','修复后均值ns','前p50 / p95','后p50 / p95','开销%'])
-        self.row(8,button('刷新记录',self.refresh_history),button('查看选中报告',self.open_report),button('在模块中查看',self.replay_report),button('导出选中证据包',self.export_selected,True),button('打开结果目录',lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(RESULTS)))))
+        self.layouts[7].addWidget(label('支持六类完整匹配模式：比较提前结束、条件失败路径、数据相关循环、数据相关访存、条件分支和运行期除法。外部源码需先通过构建对应验证；修复后使用同一批输入复测，交付源码、动态库、补丁和验证报告。'))
+        self.row(7,button('执行定位 → 修复 → 功能回归 → 对照',lambda:self.launch('repair',self.timing_args(),7),True),button('导出修复程序',self.export_repaired)); self.result_area(7,['轮次 / 类别','修复前均值ns','修复后均值ns','前p50 / p95','后p50 / p95','开销%'])
+        self.row(8,button('刷新记录',self.refresh_history),button('查看选中报告',self.open_report),button('在模块中查看',self.replay_report),button('导出选中证据包',self.export_selected,True),button('导出选中修复程序',lambda:self.export_repaired(True)),button('打开结果目录',lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(RESULTS)))))
         self.result_area(8,['时间','模块','目标','结论 / 状态','报告路径']); self.tables[8].doubleClicked.connect(self.open_report)
     def refresh_targets(self):
         old=self.target(); self.targetBox.blockSignals(True); self.targetBox.clear(); self.targets=catalog()
         for t in self.targets:self.targetBox.addItem(t['name'],t['id'])
         i=self.targetBox.findData(old)
         if i>=0:self.targetBox.setCurrentIndex(i)
-        self.targetBox.blockSignals(False); fill(self.tables[1],[(t['id'],t['origin'],','.join(t['levels']),f"{sum(t['libraries'].values())}/{len(t['libraries'])}") for t in self.targets])
+        self.targetBox.blockSignals(False); fill(self.tables[1],[(t['id'],t['origin'],t.get('mechanism',''),','.join(t['levels']),f"{sum(t['libraries'].values())}/{len(t['libraries'])}") for t in self.targets])
     def selection_changed(self):
         info=next((t for t in self.targets if t['id']==self.target()),{}); levels=info.get('levels',['512','768','1024']); old=self.level()
         self.levelBox.blockSignals(True); self.levelBox.clear(); self.levelBox.addItems(levels)
         if old in levels:self.levelBox.setCurrentText(old)
-        self.levelBox.blockSignals(False); self.context.setText(f"当前目标：{self.target()}  /  ML-KEM-{self.level()}  ·  {info.get('origin','')}")
-        for p in (3,5,6,7):self.tables[p].setRowCount(0); self.details[p].clear(); self.summaries[p].setText('尚未对当前选择运行；不会沿用其他实现的结论。')
-        self.plot.clear(); self.samplePath.setText(self.sample_by_level.get(self.level(),''))
+        self.levelBox.blockSignals(False); self.context.setText(f"当前目标：{self.target()} / ML-KEM-{self.level()} · {info.get('origin','')}\n机制：{info.get('mechanism','未说明')}；样本依据：{info.get('sample_strategy','未说明')}；范围：{info.get('limitations','')}")
+        for p in (3,5,6,7):
+            self.tables[p].setRowCount(0);self.details[p].clear();self.outputs.pop(p,None)
+            self.summaries[p].setText('尚未对当前选择运行；不会沿用其他实现的结论。')
+        self.plot.clear(); self.adaptivePlot.clear(); self.networkPlot.clear(); self.crossBuildPlot.clear(); fill(self.traceTable,[]); fill(self.overheadTable,[]); fill(self.adaptiveTable,[]); fill(self.networkTable,[]); fill(self.crossBuildTable,[]); self.instrumentBox.setChecked(False); self.samplePath.setText(self.sample_by_level.get(self.level(),''))
     def pick_library(self):
         p,_=QFileDialog.getOpenFileName(self,'选择可信本地动态库',str(ROOT),'Linux library (*.so)')
         if p:self.regLib.setText(p)
     def import_target(self):
-        self.launch('import',{'target_id':self.regId.text().strip(),'name':self.regName.text().strip(),'library_template':self.regLib.text().strip(),'levels':[s.strip() for s in self.regLevels.text().split(',')],'compiler':self.regCompiler.text(),'flags':self.regFlags.text(),'source_root':self.regSource.text().strip()},1)
+        self.launch('import',{'target_id':self.regId.text().strip(),'name':self.regName.text().strip(),'library_template':self.regLib.text().strip(),'levels':[s.strip() for s in self.regLevels.text().split(',')],'compiler':self.regCompiler.text(),'flags':self.regFlags.text(),'source_root':self.regSource.text().strip(),'build_adapter':'mlkem-native-scu-v1' if self.buildAdapter.currentIndex() else 'none','optimization':self.optimization.currentText()},1)
     def pick_source(self):
         p=QFileDialog.getExistingDirectory(self,'选择用于定位的源码目录',str(ROOT))
         if p:self.regSource.setText(p)
@@ -137,6 +158,9 @@ class MainWindow(QMainWindow):
         p,_=QFileDialog.getOpenFileName(self,'选择样本清单',str(ROOT/'results/samples'),'Manifest (*.json)')
         if p:self.samplePath.setText(p)
     def timing_args(self):return {'target_id':self.target(),'level':self.level(),'sample_report':self.samplePath.text().strip(),'pairs':self.pairs.value(),'cpu':self.cpu(),'repeats':self.repeats.value(),'category':self.category.currentIndex()+1}
+    def adaptive_args(self):return {'target_id':self.target(),'level':self.level(),'sample_report':self.samplePath.text().strip(),'cpu':self.cpu(),'category':self.category.currentIndex()+1}
+    def network_args(self):return dict(self.timing_args(),profiles=['none','low','medium','high'])
+    def cross_build_args(self):return {'sample_report':self.samplePath.text().strip() if self.level()=='512' else '', 'pairs':self.pairs.value(),'cpu':self.cpu(),'repeats':self.repeats.value()}
     def refresh_history(self):
         rows=[]
         for p in sorted(RESULTS.glob('*/report.json'),reverse=True)[:200]:
@@ -152,17 +176,42 @@ class MainWindow(QMainWindow):
     def replay_report(self):
         p=self.selected_report()
         if not p:return
-        d=json.loads(Path(p).read_text()); pages={'basic':3,'environment':2,'detection':5,'location':6,'repair':7}
+        d=json.loads(Path(p).read_text()); pages={'basic':3,'environment':2,'detection':5,'adaptive_detection':5,'network_noise':5,'cross_build':5,'location':6,'repair':7}
         page=pages.get(d.get('kind'))
         if page is None:self.open_report();return
         self.refresh_targets();idx=self.targetBox.findData(d.get('target_id'))
         if idx>=0:self.targetBox.setCurrentIndex(idx)
         if d.get('level'):self.levelBox.setCurrentText(str(d['level']))
-        if d.get('runs'):
+        if d.get('kind')=='adaptive_detection':
+            self.cpuBox.setCurrentText(str(d.get('cpu',self.cpu())))
+            self.samplePath.setText(d.get('sample_manifest',''))
+            self.category.setCurrentIndex(['changed_first_b64','changed_mid_b64','changed_last_b64'].index(d['category']))
+        elif d.get('kind')=='network_noise':
+            self.cpuBox.setCurrentText(str(d.get('server_cpu',self.cpu())))
+            self.pairs.setValue(d.get('pairs',self.pairs.value())); self.repeats.setValue(d.get('repeats',self.repeats.value()))
+            self.samplePath.setText(d.get('sample_manifest',''))
+            self.category.setCurrentIndex(['changed_first_b64','changed_mid_b64','changed_last_b64'].index(d['category']))
+        elif d.get('kind')=='cross_build':
+            self.cpuBox.setCurrentText(str(d.get('cpu',self.cpu())))
+            self.pairs.setValue(d.get('pairs',self.pairs.value())); self.repeats.setValue(d.get('repeats',self.repeats.value()))
+            self.samplePath.setText(d.get('sample_report',''))
+        elif d.get('runs'):
+            self.instrumentBox.setChecked(d.get('instrumentation') is not None)
             r=d['runs'][0];self.pairs.setValue(r['pairs']);self.repeats.setValue(len(d['runs']));self.cpuBox.setCurrentText(str(r['cpu']))
             self.samplePath.setText(r.get('sample_manifest',''))
             self.category.setCurrentIndex(['changed_first_b64','changed_mid_b64','changed_last_b64'].index(r['category']))
-        self.render_result(page,d);self.nav.setCurrentRow(page);self.status.setText('历史结果回放：'+p)
+        self.render_result(page,d);self.outputs[page]=d;self.nav.setCurrentRow(page);self.status.setText('历史结果回放：'+p)
+    def export_repaired(self,selected=False):
+        p=self.selected_report() if selected else self.outputs.get(7,{}).get('report_json','')
+        if not p:self.status.setText('请先完成修复或选择修复报告');return
+        try:
+            data=json.loads(Path(p).read_text())
+            if data.get('kind')!='repair' or not data.get('success'):raise ValueError()
+        except (OSError,ValueError):self.status.setText('请选择功能验证通过的修复报告');return
+        destination,_=QFileDialog.getSaveFileName(self,'保存修复程序包',str(Path.home()/(data['repaired_id']+'.zip')),'修复程序包 (*.zip)')
+        if not destination:return
+        self.program_destination=destination
+        self.launch('program-export',{'report_path':p},8)
     def export_selected(self):
         p=self.selected_report()
         if p:self.launch('export',{'report_path':p},8)
@@ -187,6 +236,9 @@ class MainWindow(QMainWindow):
         try:
             d=json.loads(raw)
             if code or 'error' in d:raise ValueError(d.get('message','执行失败'))
+            if action=='program-export' and getattr(self,'program_destination',''):
+                shutil.copyfile(d['zip'],self.program_destination)
+                d['saved_to']=self.program_destination;self.program_destination=''
             self.render_result(page,d); self.outputs[page]=d; self.current_report=d.get('report_json',self.current_report)
             self.status.setText('任务完成，结果已保存' if d.get('success',True) else '存在未通过项，请查看明细')
             self.logBox.appendPlainText(time.strftime('%H:%M:%S')+f"  完成 {action} · {d.get('report_json','见报告页')}")
@@ -201,7 +253,7 @@ class MainWindow(QMainWindow):
             self.progress.hide()
     def render_result(self,p,d):
         self.details[p].setPlainText(json.dumps(d,ensure_ascii=False,indent=2)); summary=d.get('conclusion','')
-        if p==1:summary='接入检查：'+('通过' if d.get('success') else '未通过，查看明细')
+        if p==1:summary='接入检查：'+('通过' if d.get('success') else '未通过，查看明细')+'。'+d.get('repair_capability','')
         elif p==2:
             n=d['native_probe']; summary=f"等级 {d['grade'].upper()} | p95/中位数 {n['p95_over_median']:.3f} | 时钟开销 {n['clock_overhead_median_ns']} ns | {d['conclusion']}"
             fill(self.tables[p],[(c['name'],'通过' if c['ok'] else '需关注',c['detail']) for c in d['checks']])
@@ -214,20 +266,58 @@ class MainWindow(QMainWindow):
         elif p==4:
             fill(self.tables[p],[(n,r,d['count'],d['ciphertext_bytes']) for n,r in [('normal','正常生成'),('changed_first','首字节翻转1位'),('changed_mid','中间字节翻转1位'),('changed_last','末字节翻转1位')]])
             self.sample_by_level[self.level()]=d['report_json']; self.samplePath.setText(d['report_json']); summary=f"已生成 {d['count']*4} 条等长输入，已连接检测与复测。"
+        elif p==5 and d.get('kind')=='network_noise' and d.get('success'):
+            rows=[]
+            for item in d['profiles']:
+                for index,run in enumerate(item['runs']):
+                    a=run['rtt']; v=a['verdict']; paired=a['paired']
+                    rows.append((f"{item['profile']['label']} / {index+1}",a['class_a']['mean_ns'],a['class_b']['mean_ns'],paired['paired_mean_difference_ns'],' ~ '.join(f'{x:.2f}' for x in paired['paired_difference_ci_ns']),'显著' if v['statistically_significant'] and v['tests_agree'] else '未形成一致证据','正式' if d['formal_environment'] else '探索'))
+            fill(self.tables[p],rows)
+            fill(self.networkTable,[(r['profile']['label'],f"{r['internal_detected_rounds']}/{r['rounds']}",f"{r['rtt_detected_rounds']}/{r['rounds']}",r['internal_mean_difference_ns'],r['rtt_mean_difference_ns'],'是' if r['rtt_control_systematic'] else '否','是' if r['formal_rtt_evidence'] else '否') for r in d['profile_summary']])
+            self.networkPlot.setPixmap(QPixmap(d['chart_png']).scaled(1010,390,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+            summary=d['conclusion']+'；内部计时与客户端RTT分开判定。'+d['scope']; self.tabs[p].setCurrentIndex(8)
+        elif p==5 and d.get('kind')=='adaptive_detection' and d.get('success'):
+            rows=[]; adaptive_rows=[]
+            for stage in d['stages']:
+                run=stage['run']; decision=stage['decision_after_stage']
+                rows.append((f"阶段 {stage['stage']}",run['normal_mean_ns'],run['changed_mean_ns'],run['mean_difference_ns'],' ~ '.join(f'{x:.2f}' for x in run['ci95_ns']),'显著' if run['statistically_significant'] else '未显著','正式' if decision['formal'] else '探索'))
+                adaptive_rows.append((stage['stage'],stage['pairs'],run['mean_difference_ns'],' ~ '.join(f'{x:.2f}' for x in run['ci95_ns']),'是' if run['statistically_significant'] else '否','是' if run['tests_agree'] else '否',decision['reason']))
+            fill(self.tables[p],rows); fill(self.adaptiveTable,adaptive_rows)
+            self.adaptivePlot.setPixmap(QPixmap(d['chart_png']).scaled(1010,390,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+            r=d['resources']; summary=f"{d['conclusion']} | 使用 {r['adaptive_pairs']:,}/{r['fixed_reference_pairs']:,} 对 | 节省 {r['pair_saving_percent']:.2f}% | {'正式证据' if d['decision']['formal'] else '探索性证据'}"
+            self.tabs[p].setCurrentIndex(5)
+        elif p==5 and d.get('kind')=='cross_build':
+            rows=[]
+            for r in d.get('rows',[]):
+                rows.append((r['configuration'],r['variant'],'通过' if r['basic_success'] else '失败',r['mean_difference_ns'],' / '.join(f"{x:.2f}" for x in r['round_differences_ns']),'是' if r['formal_environment'] else '探索',r['conclusion']))
+            fill(self.crossBuildTable,rows)
+            if d.get('chart_png') and Path(d['chart_png']).is_file():self.crossBuildPlot.setPixmap(QPixmap(d['chart_png']).scaled(1010,390,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+            summary=f"{d.get('conclusion','跨编译验证完成')} | 功能 {'通过' if d.get('functional_success') else '存在失败'} | 正式证据 {d.get('formal_accepted_rows',0)}/{d.get('formal_total_rows',0)} | 缺失配置 {len(d.get('missing_configurations',[]))}"
+            self.tabs[p].setCurrentIndex(9)
         elif p==5 and d.get('success'):
+            trace=d.get('instrumentation') or {}; stage_rows=[]; overhead_rows=[]
+            for r in sorted(trace.get('rounds',[]),key=lambda r:(r['control'],r['round'])):
+                for s in r['stages']:
+                    st=s['statistics']; paired=st['paired']; stage_rows.append((r['round'],'A/A' if r['control'] else '分类',s['stage'],s['valid_mean_ns'],s['changed_mean_ns'],paired['paired_mean_difference_ns'],' ~ '.join(f'{x:.2f}' for x in paired['paired_difference_ci_ns']),'显著' if st['verdict']['statistically_significant'] else '未显著'))
+                for s in r['overhead']:
+                    overhead_rows.append((r['round'],'A/A' if r['control'] else '分类',s['class'],s['original_mean_ns'],s['instrumented_mean_ns'],s['overhead_percent'],f"{s['original_p50_ns']:.1f} / {s['original_p95_ns']:.1f}",f"{s['instrumented_p50_ns']:.1f} / {s['instrumented_p95_ns']:.1f}",r.get('probe_calibration',{}).get('estimated_added_p50_ns','旧报告未采集')))
+            fill(self.traceTable,stage_rows); fill(self.overheadTable,overhead_rows)
             rows=[]
             shown=[(f"A/A {i+1}",r) for i,r in enumerate(d.get('controls',[]))]+[(str(i+1),r) for i,r in enumerate(d['runs'])]
             for name,r in shown:
                 a=r['analysis']; v=r['statistics']['verdict']; rows.append((name,a['valid']['mean_ns'],a['changed']['mean_ns'],a['paired_mean_difference_ns'],' ~ '.join(f'{x:.2f}' for x in a['paired_difference_ci95_ns']),'显著' if v['statistically_significant'] else ('检验不一致' if not v['tests_agree'] else '未显著'),'预检通过' if d['formal_environment'] else '探索测量'))
             fill(self.tables[p],rows); self.plot.setPixmap(QPixmap(d['runs'][-1]['chart_png']).scaled(1010,390,Qt.KeepAspectRatio,Qt.SmoothTransformation)); summary=d['conclusion']+'。'+d['scope']
+            if trace: summary+='；'+(trace.get('interpretation','插桩已完成，仅辅助分析；开销见专页') if trace.get('success') else trace.get('reason','插桩未完成'))
         elif p==6:
             s=d['source']; b=d['binary']; rows=[('源码模式',s['compare_style'],s['summary'])]
+            e=s.get('mechanism_evidence')
+            if e: rows.append(('机制定位：'+e['mechanism'],e['path'],'匹配行：'+str(e['matches']) if e['found'] else '预期模式未完整匹配'))
             rows += [(f['title'],f['path'],'匹配行：'+str(f['matches']) if f['found'] else '未找到') for f in s['findings']]
             rows += [('二进制候选',f['line'],f['note']) for f in b['findings']]; fill(self.tables[p],rows); summary=s['summary']+' '+d['scope']
         elif p==7 and 'performance' in d:
             fill(self.tables[p],[(f"{r['round']} / {r['class']}",r['before_mean_ns'],r['after_mean_ns'],f"{r['before_p50_ns']:.1f} / {r['before_p95_ns']:.1f}",f"{r['after_p50_ns']:.1f} / {r['after_p95_ns']:.1f}",r['overhead_percent']) for r in d['performance']])
             summary=f"{d['conclusion']}。补丁目标 {d['repaired_id']}；平均绝对差 {d['mean_abs_diff_before_ns']:.2f} → {d['mean_abs_diff_after_ns']:.2f} ns"
-        elif p==8:summary=f"证据包 {d.get('zip','')} · 文件数 {d.get('files','')}"
+        elif p==8:summary=f"{'修复程序包' if d.get('kind')=='program-export' else '证据包'} {d.get('saved_to',d.get('zip',''))} · 文件数 {d.get('files','')}"
         self.summaries[p].setText(summary or d.get('reason','已完成；查看完整报告'))
     def closeEvent(self,e):
         if self.process is not None:self.status.setText('任务仍在执行，请等待结果保存后关闭'); e.ignore()

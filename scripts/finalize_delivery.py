@@ -36,7 +36,7 @@ for c in timing['checks']:
 
 lines=['# 软件版交付与验收记录','',f'服务器目录：`{ROOT}`','',
  '启动：在本机图形会话执行 `./run_desktop.sh`。前端与计算任务在同一主机运行。','',
- '原平台目录没有覆盖；未推送 GitHub。当前交付包含桌面软件、源码、结果文件、原始计时、补丁、图表与实际 Qt 窗口截图。','',
+ '本文件记录本机验收。原平台目录没有覆盖；GitHub源码与服务器运行结果分别保存。新增外部源码修复与交付验收见 EXTERNAL_REPAIR_ACCEPTANCE.md。','',
  '## 功能与界面验收','',
  '- 七个内置目标各完成三个参数集100次自测，共2100次；均通过。',
  '- 七个内置目标各执行同一官方库435项，共3045次向量执行；均通过。',
@@ -56,8 +56,8 @@ for c in repairs:
     d=c['result'];lines.append(f"|{d['target_id']}|{d['mean_abs_diff_before_ns']:.2f}|{d['mean_abs_diff_after_ns']:.2f}|通过|{'通过' if d['effect_confirmed'] else '未满足；需继续复测'}|")
 lines += ['','功能闭环已跑通不等于所有计时效果都已通过。不能将此表改写成“全部消除差异”或“对所有ML-KEM均有效”。','',
  '## 适用范围','',
- '- 源码自动修复覆盖已适配的三种比较写法；其他结构给出人工适配提示。',
- '- 外部动态库有统一C接口即可进行正确性和计时检测；可选源码用于已适配结构定位。',
+ '- 源码修复覆盖完整匹配的三种比较写法和条件拒绝派生路径；其他结构需人工适配。',
+ '- 外部动态库通过统一C接口检测；支持的外部源码经重编译与输入库摘要完全一致后可修复，并导出完整程序包。',
  '- 二进制页面提供候选控制流证据，不等于自动敏感数据流证明。',
  '- 本次有512/768/1024对照；跨架构、远程网络和不同优化级别实验没有在本轮新增。',
  '- 环境分级是工程预检，不能保证测量无噪声；未检出不等于常数时间证明。',
@@ -70,14 +70,17 @@ roots=['backend','core','data','desktop_app','experiments','targets','tests','do
 with tarfile.open(bundle,'w:gz') as tar:
     for name in roots:
         for path in (ROOT/name).rglob('*'):
-            if not path.is_file() or path.is_symlink():continue
+            if path.is_symlink():
+                tar.add(path,arcname='MLKEM-Software/'+str(path.relative_to(ROOT)),recursive=False)
+                continue
+            if not path.is_file():continue
             if any(x in path.parts for x in ['__pycache__','.git','.acvp-data']):continue
             if path.suffix in ['.pyc','.so'] or path.name=='server.py':continue
             if name=='targets' and ('custom_' in str(path.relative_to(ROOT/'targets')) or 'repair_' in str(path.relative_to(ROOT/'targets'))):continue
             if name=='experiments' and path.suffix not in ['.c','.h']:continue
             tar.add(path,arcname='MLKEM-Software/'+str(path.relative_to(ROOT)))
-    for name in ['Makefile','README.md','DELIVERY.md','requirements-desktop.txt','requirements-desktop-lock.txt','run_desktop.sh']:
+    for name in ['Makefile','README.md','DELIVERY.md','EXTERNAL_REPAIR_ACCEPTANCE.md','requirements-desktop.txt','requirements-desktop-lock.txt','run_desktop.sh']:
         tar.add(ROOT/name,arcname='MLKEM-Software/'+name)
-    for name in ['prepare_software.py','accept_software.py','check_desktop.py','finalize_delivery.py']:
+    for name in ['prepare_software.py','accept_software.py','check_desktop.py','finalize_delivery.py','accept_external_repair.py','check_external_ui.py','summarize_external_repair.py','preview_neutral.py','check_source_bundle.py']:
         tar.add(ROOT/'scripts'/name,arcname='MLKEM-Software/scripts/'+name)
 print('\n'.join(lines));print('SOURCE_BUNDLE',bundle)

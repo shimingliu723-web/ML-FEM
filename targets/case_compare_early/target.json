@@ -1,0 +1,23 @@
+{
+  "id": "case_compare_early",
+  "name": "案例：比较函数早退",
+  "role": "contrast",
+  "description": "保持ML-KEM功能语义的受控实验实现，用于验证比较函数早退的检测、定位和复测链路。",
+  "levels": [
+    "512",
+    "768",
+    "1024"
+  ],
+  "library_template": "targets/case_compare_early/lib/libmlkem{level}.so",
+  "build": [
+    "bash",
+    "targets/case_compare_early/build.sh"
+  ],
+  "selftest": [],
+  "case_type": "controlled",
+  "mechanism": "comparison_early_exit",
+  "sample_strategy": "正常输入与首/中/尾单比特等长变化；位置变化用于检验比较工作量是否随首个差异位置改变",
+  "repair_strategy": "完整扫描固定长度并汇总差异",
+  "limitations": "受控案例，不代表独立算法实现或所有真实工程代码。",
+  "flags": "-O3"
+}

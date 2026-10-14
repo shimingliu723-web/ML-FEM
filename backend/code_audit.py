@@ -35,6 +35,51 @@ CHECKS = [
     },
 ]
 
+CASE_CHECKS = {
+    "mlkem_native_baseline": {
+        "mechanism": "规范固定流程基线",
+        "relative_path": "src/verify.h",
+        "patterns": ["r |= a[i] ^ b[i]", "mlk_ct_cmov_zero"],
+        "explanation": "比较过程完整扫描输入，并在解封装末端使用掩码选择；该证据仅说明此处采用固定流程写法。",
+    },
+    "case_compare_early": {
+        "mechanism": "比较函数提前结束",
+        "relative_path": "src/verify.h",
+        "patterns": ["if (a[i] != b[i])", "return 0xFF"],
+        "explanation": "比较函数在首个不同位置结束，执行工作量与首个不同位置相关。",
+    },
+    "case_conditional_failure": {
+        "mechanism": "失败处理条件路径",
+        "relative_path": "src/kem.c",
+        "patterns": ["if (fail == 0)", "mlk_hash_j", "mlk_memcpy(ss, kr"],
+        "explanation": "解封装验证结果进入两条不同的后续处理路径，定位到失败处理阶段。",
+    },
+    "case_variable_loop": {
+        "mechanism": "数据相关循环次数",
+        "relative_path": "src/verify.h",
+        "patterns": ["size_t rounds = r ? 64u : 4096u", "i < rounds"],
+        "explanation": "循环上限由比较汇总结果决定，执行迭代次数随输入类别变化。",
+    },
+    "case_memory_index": {
+        "mechanism": "数据相关内存索引",
+        "relative_path": "src/verify.h",
+        "patterns": ["case_stride", "case_table[(i * case_stride)", "case_table_ready", "i < 4096u"],
+        "explanation": "比较结果决定固定次数循环中的访问步长：一类重复命中同一缓存线，另一类跨缓存线访问。",
+    },
+    "case_conditional_branch": {
+        "mechanism": "数据相关条件分支",
+        "relative_path": "src/kem.c",
+        "patterns": ["if (fail != 0)", "case_marker", "case_i < 1024u"],
+        "explanation": "验证结果直接控制是否进入固定工作量路径，定位到解封装验证后的控制流。",
+    },
+    "case_variable_division": {
+        "mechanism": "可变除数运算",
+        "relative_path": "src/verify.h",
+        "patterns": ["case_divisor", "/ case_divisor", "i < 1024u", "if (r != 0)"],
+        "explanation": "比较结果控制一个包含固定上限运行期除法的有界路径，需结合编译后二进制中的 div/idiv 指令判断；该案例同时包含路径选择。",
+    },
+}
+
 
 def _target_source_root(target_id: str) -> Path:
     if target_id == "mlkem_native_baseline":
@@ -86,13 +131,31 @@ def locate_code(target_id: str) -> dict:
             compare_note = {"early_return_compare": "early_return", "constant_time_accumulate": "fixed_time"}.get(style, "unknown")
         except ValueError:
             pass
+    case = CASE_CHECKS.get(target_id)
+    mechanism_evidence = None
+    if case:
+        evidence = _extract_snippet(source_root / case["relative_path"], case["patterns"], context=8)
+        mechanism_evidence = {
+            **evidence,
+            "mechanism": case["mechanism"],
+            "patterns": case["patterns"],
+            "explanation": case["explanation"],
+        }
+    if mechanism_evidence and mechanism_evidence["found"]:
+        summary = f"已定位“{mechanism_evidence['mechanism']}”的源码证据。{mechanism_evidence['explanation']}"
+    elif case:
+        summary = f"未定位到“{case['mechanism']}”的预期完整模式，不能自动下结论，需要人工复核。"
+    else:
+        summary = {"early_return": "发现首个不同字节提前返回的比较模式，对应解封装重加密验证环节。", "fixed_time": "发现完整扫描与掩码汇总模式；这不是对整个实现的常数时间证明。", "unknown": "源码缺失或模式不受支持，需要人工分析，不能判为固定时间。"}[compare_note]
     return {
         "target_id": target_id,
         "target_name": target.name,
         "role": target.role,
         "source_root": str(source_root),
         "compare_style": compare_note,
-        "summary": {"early_return": "发现首个不同字节提前返回的比较模式，对应解封装重加密验证环节。", "fixed_time": "发现完整扫描与掩码汇总模式；这不是对整个实现的常数时间证明。", "unknown": "源码缺失或模式不受支持，需要人工分析，不能判为固定时间。"}[compare_note],
+        "mechanism": case["mechanism"] if case else "用户接入实现",
+        "mechanism_evidence": mechanism_evidence,
+        "summary": summary,
         "findings": findings,
     }
 

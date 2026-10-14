@@ -24,12 +24,12 @@ def _objdump() -> str:
     return tool
 
 
-def _instruction(line: str) -> tuple[str, str] | None:
+def _instruction(line: str) -> tuple[int, str, str] | None:
     # Example: "    a9d2:\t75 3f                \tjne    aa13 <mlkem_dec+0x93>"
     match = re.match(r"^\s*([0-9a-fA-F]+):\s+(?:[0-9a-fA-F]{2}\s+)+\s*([a-zA-Z][a-zA-Z0-9_.]*)\b(.*)$", line)
     if not match:
         return None
-    return match.group(2).lower(), match.group(3).strip()
+    return int(match.group(1), 16), match.group(2).lower(), match.group(3).strip()
 
 
 def _window(lines: list[str], index: int, radius: int = 4) -> list[str]:
@@ -45,18 +45,22 @@ def binary_locate(target_id: str, level: str = "512", function: str = "mlkem_dec
     library = target.library_for(level)
     if not library.is_file():
         raise FileNotFoundError(f"目标库不存在：{library}")
+    requested_function = function
+    if target_id == "case_variable_division" and function == "mlkem_dec":
+        function = "mlkem_poly_tomsg"
     command = [_objdump(), "-d", "--demangle", f"--disassemble={function}", str(library)]
     proc = subprocess.run(command, cwd=str(ROOT), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60, check=False)
     if proc.returncode != 0:
         raise RuntimeError(proc.stdout.strip() or "objdump 反汇编失败")
     lines = proc.stdout.splitlines()
     findings = []
-    counts = {"conditional_jump": 0, "conditional_move": 0, "setcc": 0}
+    counts = {"conditional_jump": 0, "conditional_move": 0, "setcc": 0,
+              "backward_jump": 0, "division": 0, "indexed_memory": 0}
     for i, line in enumerate(lines):
         parsed = _instruction(line)
         if not parsed:
             continue
-        mnemonic, operands = parsed
+        address, mnemonic, operands = parsed
         kind = None
         if mnemonic in CONDITIONAL_JUMPS:
             kind = "conditional_jump"
@@ -64,16 +68,30 @@ def binary_locate(target_id: str, level: str = "512", function: str = "mlkem_dec
             kind = "conditional_move"
         elif mnemonic in SETCC:
             kind = "setcc"
+        elif mnemonic in {"div", "divl", "divq", "idiv", "idivl", "idivq"}:
+            kind = "division"
+        elif "(" in operands and "," in operands and re.search(r"\([^)]*,[^)]*\)", operands):
+            kind = "indexed_memory"
         if not kind:
             continue
         counts[kind] += 1
+        if kind == "conditional_jump":
+            target_match = re.match(r"^([0-9a-fA-F]+)\b", operands)
+            if target_match and int(target_match.group(1), 16) < address:
+                counts["backward_jump"] += 1
         findings.append({
             "kind": kind,
             "mnemonic": mnemonic,
             "operands": operands,
             "line": line.strip(),
             "context": _window(lines, i),
-            "note": "条件跳转会改变控制流；若条件来自敏感数据，可能形成可变时间路径。" if kind == "conditional_jump" else "条件赋值通常用于避免分支，需结合上下文判断条件来源。",
+            "note": ({
+                "conditional_jump": "条件跳转会改变控制流；条件来源需与源码证据对应。",
+                "conditional_move": "条件移动通常用于避免控制流分支，仍需结合数据来源判断。",
+                "setcc": "setcc 将比较结果写入寄存器，需结合后续数据流判断。",
+                "division": "发现运行期整数除法候选指令；是否由目标表达式产生需与源码和符号位置对应。",
+                "indexed_memory": "发现带索引的内存操作候选；是否由输入相关索引产生需与源码对应。",
+            })[kind],
         })
     likely_runtime_branches = [f for f in findings if f["kind"] == "conditional_jump"]
     return {
@@ -82,6 +100,7 @@ def binary_locate(target_id: str, level: str = "512", function: str = "mlkem_dec
         "level": f"ML-KEM-{level}",
         "library": str(library),
         "function": function,
+        "requested_function": requested_function,
         "command": command,
         "total_disassembly_lines": len(lines),
         "counts": counts,
@@ -89,7 +108,8 @@ def binary_locate(target_id: str, level: str = "512", function: str = "mlkem_dec
         "conditional_jump_count": len(likely_runtime_branches),
         "summary": (
             f"函数 {function} 中发现 {len(likely_runtime_branches)} 条条件跳转、"
-            f"{counts['conditional_move']} 条条件移动、{counts['setcc']} 条 setcc 指令。"
+            f"{counts['backward_jump']} 条向后跳转、{counts['conditional_move']} 条条件移动、"
+            f"{counts['division']} 条整数除法、{counts['indexed_memory']} 条索引访存候选。"
             "二进制定位只能给出候选控制流证据，是否与敏感数据相关需要结合源码定位和计时结果。"
         ),
         "findings": findings[:80],
